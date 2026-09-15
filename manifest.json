@@ -1,8 +1,26 @@
 {
   "manifestVersion": 1,
+  "groups": [
+    {
+      "id": "runtime",
+      "title": "Runtime",
+      "hint": "Where the thing runs. This one decides most of the rest."
+    },
+    {
+      "id": "storage",
+      "title": "Storage",
+      "hint": "Where content, uploads and thumbnails live."
+    },
+    {
+      "id": "stack",
+      "title": "Stack",
+      "hint": "How much of Trokky you want, and what is in it on day one."
+    }
+  ],
   "axes": [
     {
       "id": "target",
+      "group": "runtime",
       "title": "Where will it run?",
       "options": [
         {
@@ -19,6 +37,7 @@
     },
     {
       "id": "data",
+      "group": "storage",
       "title": "Where does content live?",
       "options": [
         {
@@ -40,6 +59,7 @@
     },
     {
       "id": "media",
+      "group": "storage",
       "title": "Where do uploads live?",
       "options": [
         {
@@ -56,6 +76,7 @@
     },
     {
       "id": "images",
+      "group": "storage",
       "title": "How are thumbnails made?",
       "options": [
         {
@@ -77,6 +98,7 @@
     },
     {
       "id": "parts",
+      "group": "stack",
       "title": "What do you want?",
       "options": [
         {
@@ -98,6 +120,7 @@
     },
     {
       "id": "content",
+      "group": "stack",
       "title": "Start with content?",
       "options": [
         {

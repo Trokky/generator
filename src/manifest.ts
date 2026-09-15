@@ -17,8 +17,20 @@ export interface Option {
   hint?: string
 }
 
+/**
+ * A heading a surface can gather axes under. Presentation only: nothing in `validate` or
+ * `generate` reads it. It lives here because a configurator that hardcodes its own grouping
+ * silently drops any axis added later into nowhere.
+ */
+export interface Group {
+  id: string
+  title: string
+  hint?: string
+}
+
 export interface Axis {
   id: AxisId
+  group?: string
   title: string
   options: Option[]
 }
@@ -60,6 +72,7 @@ export interface Template {
 
 export interface Manifest {
   manifestVersion: number
+  groups: Group[]
   axes: Axis[]
   constraints: Constraint[]
   defaults: Record<string, Partial<Record<AxisId, string>>>

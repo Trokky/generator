@@ -74,3 +74,20 @@ describe('a site belongs to the content model it renders', () => {
     }
   })
 })
+
+describe('groups are a table of contents a surface can render blind', () => {
+  it('gives every axis a group that exists', () => {
+    const ids = new Set(manifest.groups.map(group => group.id))
+    for (const axis of manifest.axes) {
+      expect(axis.group, `axis ${axis.id} has no group`).toBeDefined()
+      expect(ids.has(axis.group!), `axis ${axis.id} -> group ${axis.group}`).toBe(true)
+    }
+  })
+
+  it('declares no group without axes', () => {
+    const used = new Set(manifest.axes.map(axis => axis.group))
+    for (const group of manifest.groups) {
+      expect(used.has(group.id), `group ${group.id} has no axes`).toBe(true)
+    }
+  })
+})
