@@ -128,6 +128,50 @@ describe('a Node install', () => {
   })
 })
 
+describe('the site is portable: same pages, either runtime', () => {
+  const workers = generate(withDefaults({ name: 'x', target: 'workers', parts: 'full-site', content: 'magazine' }))
+  const node = generate(withDefaults({ name: 'x', target: 'node', parts: 'full-site', content: 'magazine' }))
+
+  it('ships byte-identical pages, layouts and query helper to both', () => {
+    const shared = [...workers.keys()].filter(k => k.startsWith('src/pages/') || k.startsWith('src/layouts/') || k === 'src/trokky/site.ts')
+    expect(shared.length).toBeGreaterThan(8)
+    for (const path of shared) {
+      expect(node.get(path), path).toBe(workers.get(path))
+    }
+  })
+
+  it('differs only where it must: the adapter and how a page reaches the core', () => {
+    expect(text(workers, 'astro.config.mjs')).toContain('@astrojs/cloudflare')
+    expect(text(node, 'astro.config.mjs')).toContain("node({ mode: 'middleware' })")
+
+    expect(text(workers, 'src/trokky/page.ts')).toContain("from 'cloudflare:workers'")
+    expect(text(node, 'src/trokky/page.ts')).toContain('astro.locals')
+    // Neither reads the API over HTTP: both hand the page a core.
+    for (const tree of [workers, node]) expect(text(tree, 'src/trokky/page.ts')).toContain('site(core)')
+  })
+
+  it('has every page call load the same way, or they would not be shared', () => {
+    for (const path of [...workers.keys()].filter(k => k.endsWith('.astro') && k.startsWith('src/pages/'))) {
+      expect(text(workers, path), path).toContain('await load(Astro)')
+    }
+  })
+
+  it('serves the built site from the Node server, assets first', () => {
+    const server = text(node, 'src/server.ts')
+    expect(server).toContain("from '../dist/server/entry.mjs'")
+    expect(server).toContain("express.static('dist/client')")
+    expect(server).toContain('ssrHandler(req, res, next, { trokky: core })')
+    expect(JSON.parse(text(node, 'package.json')).dependencies['@astrojs/node']).toBeTruthy()
+    expect(JSON.parse(text(node, 'package.json')).scripts.build).toBe('astro build')
+  })
+
+  it('gives a Node project without a site no Astro at all', () => {
+    const plain = generate(withDefaults({ name: 'x', target: 'node', parts: 'studio' }))
+    expect(plain.has('astro.config.mjs')).toBe(false)
+    expect(JSON.parse(text(plain, 'package.json')).dependencies.astro).toBeUndefined()
+  })
+})
+
 describe('refusing the impossible', () => {
   it('will not generate a Worker with sharp, and says why', () => {
     expect(() => build({ images: 'sharp' })).toThrow(/native/i)

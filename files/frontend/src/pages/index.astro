@@ -2,7 +2,7 @@
 import Base from '../layouts/Base.astro'
 import { load } from '../trokky/page'
 import { mediaUrl, formatDate } from '../trokky/site'
-const s = await load()
+const s = await load(Astro)
 const featured = await s.featured()
 const latest = (await s.articles(9)).filter(a => a.id !== featured?.id)
 const authorOf = async (a: any) => a.author ? await s.author(a.author) : null

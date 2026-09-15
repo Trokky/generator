@@ -46,9 +46,20 @@ export function packageJson(config: ProjectConfig): string {
     devDependencies.tsx = '^4.19.2'
     if (config.data === 'postgres-data') dependencies.pg = '^8.13.1'
     if (config.images === 'sharp') dependencies.sharp = '^0.33.5'
-    scripts.dev = 'tsx watch src/server.ts'
-    scripts.build = 'tsc -p tsconfig.json'
-    scripts.start = 'node dist/server.js'
+
+    if (hasFrontend(config)) {
+      dependencies.astro = '^7.3.2'
+      dependencies['@astrojs/node'] = '^11.1.5'
+      // The server imports the built Astro handler, so the site has to be built before it runs.
+      scripts.build = 'astro build'
+      scripts.dev = 'astro build && tsx watch src/server.ts'
+      scripts.start = 'tsx src/server.ts'
+      scripts.check = 'astro check'
+    } else {
+      scripts.dev = 'tsx watch src/server.ts'
+      scripts.build = 'tsc -p tsconfig.json'
+      scripts.start = 'node dist/server.js'
+    }
   }
 
   return JSON.stringify(
@@ -65,6 +76,71 @@ export function packageJson(config: ProjectConfig): string {
     null,
     2,
   ) + '\n'
+}
+
+/** Astro renders on request on both targets; only the adapter differs. */
+export function astroConfig(config: ProjectConfig): string {
+  return config.target === 'workers'
+    ? `import { defineConfig } from 'astro/config'
+import cloudflare from '@astrojs/cloudflare'
+
+// Pages render on request, reading Trokky in the same Worker: edit in Studio, refresh, it's live.
+export default defineConfig({
+  output: 'server',
+  adapter: cloudflare(),
+})
+`
+    : `import { defineConfig } from 'astro/config'
+import node from '@astrojs/node'
+
+// Middleware mode: the build produces a handler that the Express app mounts, so the site and the
+// API share one process — and a page can read Trokky directly instead of calling its own HTTP API.
+export default defineConfig({
+  output: 'server',
+  adapter: node({ mode: 'middleware' }),
+})
+`
+}
+
+/**
+ * How a page gets hold of Trokky. The one file that cannot be shared between targets: a Worker
+ * takes its bindings from `cloudflare:workers`, a server is handed the core through Astro locals.
+ */
+export function pageHelper(config: ProjectConfig): string {
+  return config.target === 'workers'
+    ? `/**
+ * The one line every page starts with: Trokky, from the Worker's bindings.
+ *
+ * Astro 6+ dropped \`Astro.locals.runtime.env\`; bindings come from the \`cloudflare:workers\`
+ * module, which is importable anywhere in the Worker. The \`astro\` argument is unused here and
+ * present so pages read the same on both runtimes.
+ */
+import type { AstroGlobal } from 'astro'
+import { env } from 'cloudflare:workers'
+import { getTrokky, type TrokkyEnv } from './core'
+import { site, type Site } from './site'
+
+export async function load(_astro: AstroGlobal): Promise<Site> {
+  const { core } = await getTrokky(env as unknown as TrokkyEnv)
+  return site(core)
+}
+`
+    : `/**
+ * The one line every page starts with: Trokky, from the server that mounted this handler.
+ *
+ * The Express app passes the core in as Astro locals, so a page reads content in-process — the
+ * same way it does on Workers, and without an API token or a round trip.
+ */
+import type { AstroGlobal } from 'astro'
+import type { TrokkyCore } from '@trokky/trokky'
+import { site, type Site } from './site'
+
+export async function load(astro: AstroGlobal): Promise<Site> {
+  const core = (astro.locals as { trokky?: TrokkyCore }).trokky
+  if (!core) throw new Error('Trokky was not passed into Astro locals. Check src/server.ts.')
+  return site(core)
+}
+`
 }
 
 export function wranglerConfig(config: ProjectConfig): string {
@@ -249,30 +325,42 @@ ${hasStudio(config) ? `
 
 export function nodeEntry(config: ProjectConfig): string {
   const seeds = config.content === 'magazine'
+  const site = hasFrontend(config)
+
   return `/**
  * The server.
  *
  * \`startServer\` builds the Express app, mounts the API and installs shutdown handlers.
- * ${hasStudio(config) ? 'The Studio is mounted separately, before any catch-all of your own.' : 'No Studio here: this is a headless API.'}
+${site ? ` * The Studio and the site are mounted onto that same app, in order: the API already owns
+ * /api, then /studio, then Astro takes everything else.` : hasStudio(config) ? ' * The Studio is mounted separately, before any catch-all of your own.' : ' * No Studio here: this is a headless API.'}
  */
 import { startServer } from '${TROKKY}/express'
 // Adapters register themselves as a side effect of being imported. Without these two lines the
 // config below names an adapter that nothing registered, and startup fails.
 import '${TROKKY}/adapters/${config.data}'
 import '${TROKKY}/adapters/${config.media}'
-${hasStudio(config) ? `import { studioRouter } from '${STUDIO}/express'\n` : ''}${seeds ? `import { readFile } from 'node:fs/promises'
+${hasStudio(config) ? `import { studioRouter } from '${STUDIO}/express'\n` : ''}${site ? `import express from 'express'
+// Built by \`astro build\`; run the build before the server.
+import { handler as ssrHandler } from '../dist/server/entry.mjs'
+` : ''}${seeds ? `import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { seedSampleContent } from './trokky/seed.js'
 ` : ''}import config from '../trokky.config.js'
 
 const server = await startServer(config)
+const core = server.integration.core
 ${hasStudio(config) ? `
 // Mount Studio before anything that could swallow it.
 server.app.use('/studio', studioRouter({ apiPath: '/api' }))
+` : ''}${site ? `
+// Middleware mode does no file serving of its own, so the built client assets come first.
+server.app.use(express.static('dist/client'))
+// Then every remaining path is Astro's. The core goes in as locals, which is how a page reads
+// content in-process rather than calling back out over HTTP.
+server.app.use((req, res, next) => ssrHandler(req, res, next, { trokky: core }))
 ` : ''}${seeds ? `
 // Sample content, on a store that has none. A Worker seeds after the claim, inside waitUntil;
 // a server has no such hook and boots under the operator's control, so first run is the moment.
-const core = server.integration.core
 if (core) {
   const seedDir = path.join(process.cwd(), 'public', 'seed')
   seedSampleContent(core, async file => {
@@ -333,7 +421,13 @@ ${dataOptions}
 
   media: {
     processor: '${config.images}' as const,
-  },
+${config.images === 'none' ? '' : `    // Without this list nothing is generated: the Express layer passes \`variants\` straight
+    // through, and an empty one means every thumbnail URL is a 404.
+    variants: [
+      { name: 'thumbnail', width: 480, height: 320, format: 'webp' as const, quality: 80, fit: 'cover' as const },
+      { name: 'large', width: 1600, height: 1000, format: 'webp' as const, quality: 85, fit: 'inside' as const },
+    ],
+`}  },
 
   security: {
     enabled: true,

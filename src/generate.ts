@@ -59,6 +59,11 @@ export function generate(config: ProjectConfig): FileTree {
   tree.set('tsconfig.json', emit.tsconfig(config))
   tree.set('README.md', readme(config))
 
+  if (hasFrontend(config)) {
+    tree.set('astro.config.mjs', emit.astroConfig(config))
+    tree.set('src/trokky/page.ts', emit.pageHelper(config))
+  }
+
   if (config.target === 'workers') {
     tree.set('wrangler.jsonc', emit.wranglerConfig(config))
     tree.set('src/worker.ts', emit.workersEntry(config))
@@ -77,7 +82,7 @@ export function generate(config: ProjectConfig): FileTree {
   // Without a frontend there are no pages to render, and no Astro to render them.
   if (!hasFrontend(config)) {
     for (const path of [...tree.keys()]) {
-      if (path.startsWith('src/pages/') || path.startsWith('src/layouts/') || path === 'astro.config.mjs' || path === 'src/trokky/page.ts' || path === 'src/trokky/site.ts') {
+      if (path.startsWith('src/pages/') || path.startsWith('src/layouts/') || path === 'src/trokky/site.ts') {
         tree.delete(path)
       }
     }

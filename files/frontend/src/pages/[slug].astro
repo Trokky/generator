@@ -1,7 +1,7 @@
 ---
 import Base from '../layouts/Base.astro'
 import { load } from '../trokky/page'
-const s = await load()
+const s = await load(Astro)
 const page = await s.page(Astro.params.slug!)
 if (!page) return new Response(null, { status: 404 })
 ---

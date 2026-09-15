@@ -26,6 +26,7 @@ const CASES = [
   { id: 'workers-full',   flags: ['--target=workers', '--parts=full-site', '--content=magazine'] },
   { id: 'workers-studio', flags: ['--target=workers', '--parts=studio', '--content=magazine'] },
   { id: 'workers-api',    flags: ['--target=workers', '--parts=api', '--content=blank'] },
+  { id: 'node-full',      flags: ['--target=node', '--parts=full-site', '--content=magazine'] },
   { id: 'node-studio',    flags: ['--target=node', '--parts=studio', '--content=magazine'] },
   { id: 'node-api',       flags: ['--target=node', '--parts=api', '--content=blank'] },
   { id: 'node-postgres',  flags: ['--target=node', '--parts=studio', '--content=magazine', '--data=postgres-data'], skipBoot: 'needs a database' },
@@ -83,7 +84,26 @@ async function smoke(testCase) {
 
     const claim = await (await fetch(`${base}/api/auth/claim`)).json()
     if (!claim?.data?.claimable) throw new Error('not claimable on a fresh instance')
+    if (claim.data.secretRequired !== true) throw new Error('a configured claim secret was not required')
     notes.push('claimable')
+
+    // Claim it, the way the first person to open Studio would. On Workers this is also what
+    // triggers the seed; on Node the seed already ran at boot. Either way the instance is now
+    // owned, and a second claim must be refused.
+    const claimed = await (await fetch(`${base}/api/auth/claim`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'smoke', email: 'smoke@example.org', password: 'a-long-enough-password-9!', secret: claimSecret }),
+    })).json()
+    if (!claimed?.data?.claimed) throw new Error(`claim refused: ${JSON.stringify(claimed?.error ?? claimed)}`)
+
+    const second = await (await fetch(`${base}/api/auth/claim`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'intruder', email: 'i@example.org', password: 'a-long-enough-password-9!', secret: claimSecret }),
+    })).json()
+    if (second?.data?.claimed) throw new Error('a claimed instance let itself be claimed again')
+    notes.push('claimed once')
 
     if (!testCase.flags.includes('--parts=api')) {
       const studio = await fetch(`${base}/studio`)
@@ -93,9 +113,27 @@ async function smoke(testCase) {
     }
 
     if (testCase.flags.includes('--parts=full-site')) {
-      const home = await fetch(`${base}/`)
-      if (!home.ok) throw new Error('site did not render')
+      // The seed uploads and the variants it triggers are the slowest part of a first run.
+      let html = ''
+      const deadline = Date.now() + 90_000
+      while (Date.now() < deadline) {
+        const home = await fetch(`${base}/`)
+        if (!home.ok) throw new Error('site did not render')
+        html = await home.text()
+        if (html.includes('/articles/')) break
+        await sleep(2000)
+      }
+      if (!html.includes('/articles/')) throw new Error('site rendered but the seed never appeared')
       notes.push('site')
+
+      // A thumbnail is the end of the whole media pipeline: upload, process, store, serve. It
+      // 404s quietly when the processor has no variants configured, and the page still looks fine.
+      const thumbnail = html.match(/\/api\/media\/[^"']+\/variants\/thumbnail/)?.[0]
+      if (!thumbnail) throw new Error('no thumbnail on the home page')
+      const image = await fetch(`${base}${thumbnail}`)
+      const type = image.headers.get('content-type') ?? ''
+      if (!image.ok || !type.startsWith('image/')) throw new Error(`thumbnail did not serve: ${image.status} ${type}`)
+      notes.push('thumbnails')
     }
   } finally {
     child.kill('SIGTERM')

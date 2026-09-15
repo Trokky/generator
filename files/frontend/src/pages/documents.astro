@@ -2,7 +2,7 @@
 import Base from '../layouts/Base.astro'
 import { load } from '../trokky/page'
 import { mediaUrl, formatDate } from '../trokky/site'
-const s = await load()
+const s = await load(Astro)
 const docs = await s.documents()
 ---
 <Base title="Documents" settings={s.settings}>

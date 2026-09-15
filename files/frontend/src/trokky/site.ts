@@ -1,10 +1,20 @@
 /**
- * What the pages read. They call the core directly: the site is server-side code in the same
- * Worker, so it has the same trust as the API and needs no token — and a render never leaves
- * the isolate. Only published content is ever returned from here.
+ * What the pages read.
+ *
+ * They call the core directly rather than the HTTP API: the site is server-side code in the same
+ * process as Trokky, so it has the same trust and needs no token, and a render never leaves the
+ * process. Only published content is ever returned from here.
+ *
+ * Nothing in this file is runtime-specific — that is the point. It is byte-identical on Workers
+ * and on Node; only `page.ts` differs, because only the way a page gets hold of the core differs.
  */
 import type { TrokkyCore } from '@trokky/trokky'
-import { API_PATH } from './core'
+
+/**
+ * Where the API is mounted, for the media URLs the browser will fetch. Declared here rather than
+ * imported, because the Workers entry that also declares it does not exist on Node.
+ */
+const API_PATH = '/api'
 
 type Doc = Record<string, any> & { id: string; _status?: string }
 
