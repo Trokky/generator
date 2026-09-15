@@ -60,7 +60,9 @@ writeFileSync(
 )
 
 const kb = value => `${Math.round(value / 1024)}KB`
-console.log(
+// stderr, not stdout. This runs inside `prepare`, so `npm pack --json` would otherwise carry
+// this line into what a caller parses as JSON — which is exactly how CI first went red.
+console.error(
   `inlined ${Object.keys(text).length} text files (${kb(JSON.stringify(text).length)}) ` +
     `and ${Object.keys(binary).length} binary (${kb(JSON.stringify(binary).length)})`,
 )

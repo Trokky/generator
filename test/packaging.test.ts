@@ -17,9 +17,15 @@ import { withDefaults } from '../src/config.js'
 import { validate } from '../src/validate.js'
 import { manifest } from '../src/manifest.js'
 
-const packed: string[] = JSON.parse(
-  execFileSync('npm', ['pack', '--dry-run', '--json'], { encoding: 'utf8' }),
-)[0].files.map((f: { path: string }) => f.path)
+/**
+ * `npm pack` runs `prepare`, and anything that script writes to stdout lands in front of the
+ * JSON. Ours writes to stderr for that reason, but npm's own output is not ours to control, so
+ * the parse starts at the first bracket rather than assuming a clean stream.
+ */
+const packOutput = execFileSync('npm', ['pack', '--dry-run', '--json'], { encoding: 'utf8' })
+const packed: string[] = JSON.parse(packOutput.slice(packOutput.indexOf('[')))[0].files.map(
+  (f: { path: string }) => f.path,
+)
 
 describe('the published tarball', () => {
   it('ships every file set the generator copies from', () => {
