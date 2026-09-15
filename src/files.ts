@@ -40,9 +40,9 @@ const decodeBase64 = (value: string): Uint8Array => {
 /** A source backed by the inlined bundle — no filesystem, so it runs anywhere. */
 export function inlineFileSource(inlined: InlinedFiles): FileSource {
   const setOf = (path: string): string => {
-    // `content/magazine/...` is one set; `base/...` is another. Two segments or one.
+    // `content/<model>/…` and `site/<model>/…` are two-segment sets; `base/…` is one.
     const parts = path.split('/')
-    return parts[0] === 'content' ? `${parts[0]}/${parts[1]}` : parts[0]
+    return parts[0] === 'content' || parts[0] === 'site' ? `${parts[0]}/${parts[1]}` : parts[0]
   }
 
   const sets = new Map<string, FileSet>()

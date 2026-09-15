@@ -15,6 +15,12 @@ export type FileTree = Map<string, string | Uint8Array>
 /**
  * Which copied file sets a composition pulls in, in order.
  *
+ * A content model owns two sets: `content/<id>` is its schemas, structure and seed, and
+ * `site/<id>` is the pages that render them. They are separate because a headless install wants
+ * the first without the second — and they are named after the model rather than shared, because
+ * pages are written against particular collections. Adding a content model means adding those
+ * directories; nothing here needs to learn its name.
+ *
  * There is deliberately no `node` set: every file a Node project needs has contents that depend
  * on the choices, so all of it is emitted. An empty directory would not survive git or npm
  * anyway — it did not, and the failure was a scandir error on a user's machine.
@@ -23,7 +29,7 @@ function sources(config: ProjectConfig): string[] {
   const sets = ['base']
   if (config.target === 'workers') sets.push('workers')
   if (config.content !== 'blank') sets.push(`content/${config.content}`)
-  if (hasFrontend(config)) sets.push('frontend')
+  if (hasFrontend(config)) sets.push(`site/${config.content}`)
   return sets
 }
 
@@ -69,14 +75,6 @@ export function generate(config: ProjectConfig, source: FileSource): FileTree {
   // A Studio-less project has nothing to copy Studio into.
   if (!hasStudio(config)) {
     tree.delete('scripts/copy-studio.mjs')
-  }
-  // Without a frontend there are no pages to render, and no Astro to render them.
-  if (!hasFrontend(config)) {
-    for (const path of [...tree.keys()]) {
-      if (path.startsWith('src/pages/') || path.startsWith('src/layouts/') || path === 'src/trokky/site.ts') {
-        tree.delete(path)
-      }
-    }
   }
   // Seed assets are only reachable when something serves static files.
   if (config.content === 'blank' || (config.target === 'workers' && !hasStudio(config) && !hasFrontend(config))) {
@@ -129,7 +127,7 @@ Wrangler provisions the D1 database and R2 bucket named in \`wrangler.jsonc\` on
 
 Open ${hasStudio(config) ? '`/studio`' : 'the API'}. Nobody owns this instance yet, so the first
 screen asks you to **claim** it: pick a username and password, and paste \`TROKKY_CLAIM_SECRET\`.
-${config.content === 'magazine' ? 'Sample content appears a moment later — edit it or delete it.' : ''}
+${config.content === 'blank' ? '' : 'Sample content appears a moment later — edit it or delete it.'}
 
 Without a claim secret the claim is open to whoever reaches the URL first. That is fine for the
 minute between deploying and opening the link; it is not fine for an instance left sitting.

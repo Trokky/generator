@@ -24,7 +24,7 @@ const packed: string[] = JSON.parse(
 describe('the published tarball', () => {
   it('ships every file set the generator copies from', () => {
     // No 'node': a Node project is entirely emitted, so there is nothing to copy for it.
-    for (const set of ['base', 'workers', 'content/magazine', 'frontend']) {
+    for (const set of ['base', 'workers', 'content/magazine', 'site/magazine']) {
       expect(packed.some(path => path.startsWith(`files/${set}/`)), `files/${set}/`).toBe(true)
     }
   })

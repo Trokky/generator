@@ -64,6 +64,23 @@ Only `src/trokky/page.ts` and `astro.config.mjs` differ. Every page, every layou
 helper are the same file — and on both runtimes a page reads content **in-process**, with no API
 token and no HTTP round trip.
 
+## Adding a content model
+
+A content model is two directories and a manifest entry. Nothing in the generator learns its
+name.
+
+1. `files/content/<id>/` — `src/trokky/schemas.ts`, `structure.ts`, `seed.ts`, and any
+   `public/seed/` assets the seed uploads.
+2. `files/site/<id>/` — the Astro pages, layouts and `src/trokky/site.ts` that render it.
+   **Optional**: leave it out and the model is headless-only, and the configurator will not offer
+   it a frontend. Pages are written against particular collections, which is why a site belongs
+   to its model rather than being shared.
+3. `manifest.json` — add the option under the `content` axis. If it has a site, add its id to the
+   `content-needs-schemas` constraint's `allow` list.
+
+`test/extensibility.test.ts` holds that contract: it fails if a model has pages the configurator
+will not offer, or is offered a frontend it has no pages for.
+
 ## Using it as a library
 
 ```ts

@@ -12,7 +12,8 @@ export interface ProjectConfig {
   media: 'filesystem-media' | 'cloudflare-r2'
   images: 'sharp' | 'cloudflare-images' | 'none'
   parts: 'api' | 'studio' | 'full-site'
-  content: 'blank' | 'magazine'
+  /** Open on purpose: a content model is a pair of directories, not a value this file knows. */
+  content: string
   /** Version range written into the generated package.json for @trokky/* . */
   trokkyVersion: string
 }

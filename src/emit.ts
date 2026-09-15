@@ -272,7 +272,7 @@ ${hasStudio(config) ? `  const studio = createStudioFetchHandler({ basePath: STU
 }
 
 export function workersEntry(config: ProjectConfig): string {
-  const seeds = config.content === 'magazine'
+  const seeds = config.content !== 'blank'
   const parts = [
     `/**
  * The Worker.
@@ -324,7 +324,7 @@ ${hasStudio(config) ? `
 }
 
 export function nodeEntry(config: ProjectConfig): string {
-  const seeds = config.content === 'magazine'
+  const seeds = config.content !== 'blank'
   const site = hasFrontend(config)
 
   return `/**
