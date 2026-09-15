@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { manifest } from '../src/manifest.js'
-import { validate, optionsFor, templateFor, describe as describeProblems } from '../src/validate.js'
+import { validate, optionsFor, reconcile, templateFor, describe as describeProblems } from '../src/validate.js'
 import { generate } from '../src/generate.js'
 import { fsFileSource } from '../src/files-node.js'
 import { withDefaults } from '../src/config.js'
@@ -172,5 +172,42 @@ describe('templates: the only compositions a Deploy button can serve', () => {
       expect(validate(config).valid, template.id).toBe(true)
       expect(() => generate(config, fsFileSource()), template.id).not.toThrow()
     }
+  })
+})
+
+describe('mid-change, when the config is briefly inconsistent', () => {
+  // The exact state of the page the instant someone clicks "Node / Express": the Cloudflare
+  // adapters are still selected, because nothing has reset them yet.
+  const midSwitch = {
+    name: 'x', target: 'node' as const, data: 'cloudflare-d1' as const, media: 'cloudflare-r2' as const,
+    images: 'cloudflare-images' as const, parts: 'full-site' as const, content: 'magazine' as const,
+  }
+
+  it('still reports what each axis allows, instead of going blank', () => {
+    // Judging the whole config would answer "nothing, anywhere" and read as a dead page.
+    expect(optionsFor('data', midSwitch)).toEqual(['filesystem-data', 'postgres-data'])
+    expect(optionsFor('media', midSwitch)).toEqual(['filesystem-media'])
+    expect(optionsFor('images', midSwitch)).toEqual(['sharp', 'none'])
+    expect(optionsFor('parts', midSwitch)).toEqual(['api', 'studio', 'full-site'])
+  })
+
+  it('reconciles to a valid composition, preferring the new target’s defaults', () => {
+    const settled = reconcile(midSwitch)
+    expect(validate(settled).valid).toBe(true)
+    expect(settled).toMatchObject({ target: 'node', data: 'filesystem-data', media: 'filesystem-media', images: 'sharp' })
+    // What was still fine is kept: nobody wants their other choices silently reset too.
+    expect(settled.parts).toBe('full-site')
+    expect(settled.content).toBe('magazine')
+  })
+
+  it('reconciles the other direction just as well', () => {
+    const settled = reconcile({ name: 'x', target: 'workers', data: 'postgres-data', media: 'filesystem-media', images: 'sharp', parts: 'studio', content: 'magazine' })
+    expect(validate(settled).valid).toBe(true)
+    expect(settled).toMatchObject({ data: 'cloudflare-d1', media: 'cloudflare-r2', images: 'cloudflare-images', parts: 'studio' })
+  })
+
+  it('leaves an already-valid composition alone', () => {
+    const valid = withDefaults({ name: 'x', target: 'node' })
+    expect(reconcile(valid)).toMatchObject(valid)
   })
 })
