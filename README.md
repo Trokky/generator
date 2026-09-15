@@ -76,7 +76,19 @@ const files = generate(withDefaults({ name: 'my-site', target: 'workers' }))
 // Map<path, string | Uint8Array> — pure, nothing touches the disk
 ```
 
-`generate` is pure so the same function serves the CLI, a zip download and an API install.
+`generate` is pure, and it takes its template files from a source you hand it — so the same
+function serves a terminal, a browser and an API install:
+
+```ts
+import { generate, inlineFileSource } from 'create-trokky'
+import { text } from 'create-trokky/generated/files-text'
+
+// No filesystem: this runs in a browser or a Worker.
+const files = generate(config, inlineFileSource({ text, binary: {} }))
+```
+
+`create-trokky/node` adds `fsFileSource()` and `writeTree()`, which the CLI uses. Nothing in the
+main export touches `node:fs`, so a browser bundle never pulls it in.
 
 ## Releasing
 

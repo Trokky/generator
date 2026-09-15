@@ -1,19 +1,14 @@
 /**
- * config → file tree. Pure: nothing here touches the disk, so it is testable, and the same
- * function serves the CLI, a zip download and an API install.
+ * config → file tree. Pure: nothing here touches the disk, so it is testable, it runs in a
+ * browser as readily as in a terminal, and the same function serves the CLI, a zip download and
+ * an API install.
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { dirname, join, relative, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { ProjectConfig } from './config.js'
 import { hasFrontend, hasStudio } from './config.js'
 import { validate, describe } from './validate.js'
+import type { FileSource } from './files.js'
 import * as emit from './emit.js'
-
-const here = dirname(fileURLToPath(import.meta.url))
-/** `files/` sits beside `dist/` in the published package and beside `src/` in the repo. */
-const FILES = join(here, '..', 'files')
 
 export type FileTree = Map<string, string | Uint8Array>
 
@@ -32,41 +27,23 @@ function sources(config: ProjectConfig): string[] {
   return sets
 }
 
-function copyInto(tree: FileTree, root: string, prefixToStrip = ''): void {
-  // Loud, not silent: a set that is missing from the package is a packaging bug, and skipping it
-  // would produce a project quietly short of files instead of an error anyone can act on.
-  if (!existsSync(root)) {
-    throw new Error(`File set missing from the package: ${root}. Check the "files" field and npm's ignore rules.`)
+function copyInto(tree: FileTree, source: FileSource, set: string): void {
+  for (const [path, contents] of source.read(set)) {
+    // npm refuses to ship a .gitignore inside a package — it is on its always-ignored list — so
+    // the template keeps it dotless and the name is restored here. Miss this and the set it
+    // lives in arrives empty, which surfaces as an error on a user's machine, not at publish.
+    tree.set(path.replace(/(^|\/)gitignore$/, '$1.gitignore'), contents)
   }
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir)) {
-      const full = join(dir, entry)
-      if (statSync(full).isDirectory()) {
-        walk(full)
-        continue
-      }
-      const rel = relative(root, full).split(sep).join('/')
-      // npm refuses to ship a .gitignore inside a package — it is on its always-ignored list —
-      // so the template keeps it dotless and it is restored here. Miss this and the file set it
-      // lives in arrives empty, which is a scandir error at generate time, not at publish time.
-      const named = rel.replace(/(^|\/)gitignore$/, '$1.gitignore')
-      const target = prefixToStrip && named.startsWith(prefixToStrip) ? named.slice(prefixToStrip.length) : named
-      // Text where we can, bytes where we must: the seed images and PDFs are binary.
-      const binary = /\.(jpg|jpeg|png|gif|webp|pdf|ico|woff2?)$/i.test(rel)
-      tree.set(target, binary ? new Uint8Array(readFileSync(full)) : readFileSync(full, 'utf8'))
-    }
-  }
-  walk(root)
 }
 
-export function generate(config: ProjectConfig): FileTree {
+export function generate(config: ProjectConfig, source: FileSource): FileTree {
   const result = validate(config)
   if (!result.valid) {
     throw new Error(`This combination cannot be built:\n${describe(result.problems)}`)
   }
 
   const tree: FileTree = new Map()
-  for (const set of sources(config)) copyInto(tree, join(FILES, set))
+  for (const set of sources(config)) copyInto(tree, source, set)
 
   // Files whose contents depend on the choices.
   tree.set('package.json', emit.packageJson(config))

@@ -16,7 +16,19 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./manifest.json": "./manifest.json"
+    "./manifest.json": "./manifest.json",
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    },
+    "./generated/files-text": {
+      "types": "./dist/generated/files-text.d.ts",
+      "import": "./dist/generated/files-text.js"
+    },
+    "./generated/files-binary": {
+      "types": "./dist/generated/files-binary.d.ts",
+      "import": "./dist/generated/files-binary.js"
+    }
   },
   "files": [
     "dist",
@@ -28,10 +40,11 @@
   },
   "scripts": {
     "prepare": "npm run build",
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/inline-files.mjs && tsc -p tsconfig.json",
     "test": "vitest run",
     "check": "tsc -p tsconfig.json --noEmit",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "inline": "node scripts/inline-files.mjs"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

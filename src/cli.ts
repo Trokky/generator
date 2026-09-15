@@ -14,6 +14,7 @@ import { manifest, type AxisId } from './manifest.js'
 import { withDefaults, type ProjectConfig } from './config.js'
 import { validate, optionsFor, describe } from './validate.js'
 import { generate } from './generate.js'
+import { fsFileSource } from './files-node.js'
 import { writeTree } from './write.js'
 
 function parseFlags(args: string[]): Record<string, string> {
@@ -73,7 +74,7 @@ async function main(): Promise<void> {
   }
 
   const target_dir = resolve(flags.out ?? name)
-  writeTree(generate(config), target_dir)
+  writeTree(generate(config, fsFileSource()), target_dir)
 
   const secrets = manifest.secrets[config.target] ?? []
   console.log(`\nCreated ${config.name} in ${target_dir}\n`)

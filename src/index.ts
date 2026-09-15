@@ -2,4 +2,5 @@ export { manifest, axis, type Manifest, type Axis, type Option, type Constraint,
 export { withDefaults, hasStudio, hasFrontend, type ProjectConfig, type PartialConfig } from './config.js'
 export { validate, optionsFor, describe, type ValidationResult, type Problem } from './validate.js'
 export { generate, type FileTree } from './generate.js'
+export { inlineFileSource, isBinaryPath, type FileSource, type FileSet, type InlinedFiles } from './files.js'
 export * as emit from './emit.js'

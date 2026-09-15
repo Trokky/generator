@@ -7,10 +7,13 @@
 
 import { describe, it, expect } from 'vitest'
 import { generate } from '../src/generate.js'
+import { fsFileSource } from '../src/files-node.js'
+
+const source = fsFileSource()
 import { withDefaults } from '../src/config.js'
 
 const build = (over: Record<string, unknown> = {}) =>
-  generate(withDefaults({ name: 'my-site', target: 'workers', ...over } as never))
+  generate(withDefaults({ name: 'my-site', target: 'workers', ...over } as never), source)
 
 const text = (tree: Map<string, string | Uint8Array>, path: string): string => {
   const value = tree.get(path)
@@ -81,7 +84,7 @@ describe('an API-only Worker', () => {
 })
 
 describe('a Node install', () => {
-  const tree = generate(withDefaults({ name: 'my-cms', target: 'node' }))
+  const tree = generate(withDefaults({ name: 'my-cms', target: 'node' }), source)
 
   it('emits a server and a config, not a Worker', () => {
     expect(tree.has('src/server.ts')).toBe(true)
@@ -101,13 +104,13 @@ describe('a Node install', () => {
 
   it('installs sharp only when sharp was chosen', () => {
     expect(JSON.parse(text(tree, 'package.json')).dependencies.sharp).toBeTruthy()
-    const none = generate(withDefaults({ name: 'x', target: 'node', images: 'none' }))
+    const none = generate(withDefaults({ name: 'x', target: 'node', images: 'none' }), source)
     expect(JSON.parse(text(none, 'package.json')).dependencies.sharp).toBeUndefined()
   })
 
   it('installs pg only for Postgres', () => {
     expect(JSON.parse(text(tree, 'package.json')).dependencies.pg).toBeUndefined()
-    const pg = generate(withDefaults({ name: 'x', target: 'node', data: 'postgres-data' }))
+    const pg = generate(withDefaults({ name: 'x', target: 'node', data: 'postgres-data' }), source)
     expect(JSON.parse(text(pg, 'package.json')).dependencies.pg).toBeTruthy()
     expect(text(pg, '.env.example')).toContain('DATABASE_URL')
   })
@@ -119,7 +122,7 @@ describe('a Node install', () => {
     expect(server).toContain("import '@trokky/trokky/adapters/filesystem-data'")
     expect(server).toContain("import '@trokky/trokky/adapters/filesystem-media'")
 
-    const pg = generate(withDefaults({ name: 'x', target: 'node', data: 'postgres-data' }))
+    const pg = generate(withDefaults({ name: 'x', target: 'node', data: 'postgres-data' }), source)
     expect(text(pg, 'src/server.ts')).toContain("import '@trokky/trokky/adapters/postgres-data'")
   })
 
@@ -129,8 +132,8 @@ describe('a Node install', () => {
 })
 
 describe('the site is portable: same pages, either runtime', () => {
-  const workers = generate(withDefaults({ name: 'x', target: 'workers', parts: 'full-site', content: 'magazine' }))
-  const node = generate(withDefaults({ name: 'x', target: 'node', parts: 'full-site', content: 'magazine' }))
+  const workers = generate(withDefaults({ name: 'x', target: 'workers', parts: 'full-site', content: 'magazine' }), source)
+  const node = generate(withDefaults({ name: 'x', target: 'node', parts: 'full-site', content: 'magazine' }), source)
 
   it('ships byte-identical pages, layouts and query helper to both', () => {
     const shared = [...workers.keys()].filter(k => k.startsWith('src/pages/') || k.startsWith('src/layouts/') || k === 'src/trokky/site.ts')
@@ -166,7 +169,7 @@ describe('the site is portable: same pages, either runtime', () => {
   })
 
   it('gives a Node project without a site no Astro at all', () => {
-    const plain = generate(withDefaults({ name: 'x', target: 'node', parts: 'studio' }))
+    const plain = generate(withDefaults({ name: 'x', target: 'node', parts: 'studio' }), source)
     expect(plain.has('astro.config.mjs')).toBe(false)
     expect(JSON.parse(text(plain, 'package.json')).dependencies.astro).toBeUndefined()
   })
@@ -178,7 +181,7 @@ describe('refusing the impossible', () => {
   })
 
   it('will not generate a Node project with D1', () => {
-    expect(() => generate(withDefaults({ name: 'x', target: 'node', data: 'cloudflare-d1' }))).toThrow(/binding/i)
+    expect(() => generate(withDefaults({ name: 'x', target: 'node', data: 'cloudflare-d1' }), source)).toThrow(/binding/i)
   })
 })
 

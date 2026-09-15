@@ -10,6 +10,9 @@
 import { describe, it, expect } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import { generate } from '../src/generate.js'
+import { fsFileSource } from '../src/files-node.js'
+
+const source = fsFileSource()
 import { withDefaults } from '../src/config.js'
 import { validate } from '../src/validate.js'
 import { manifest } from '../src/manifest.js'
@@ -52,7 +55,7 @@ describe('every set the generator can ask for exists', () => {
               for (const content of ids('content')) {
                 const config = { name: 'x', target, data, media, images, parts, content, trokkyVersion: '^3.4.1' } as never
                 if (!validate(config).valid) continue
-                expect(() => generate(config), JSON.stringify({ target, parts, content })).not.toThrow()
+                expect(() => generate(config, source), JSON.stringify({ target, parts, content })).not.toThrow()
                 built++
               }
     expect(built).toBe(30)
@@ -61,7 +64,7 @@ describe('every set the generator can ask for exists', () => {
 
 describe('a generated project still gets the dotfiles it needs', () => {
   it('has a real .gitignore, restored from its dotless template', () => {
-    const tree = generate(withDefaults({ name: 'x', target: 'workers' }))
+    const tree = generate(withDefaults({ name: 'x', target: 'workers' }), source)
     expect(tree.has('.gitignore')).toBe(true)
     expect(tree.has('gitignore')).toBe(false)
     expect(String(tree.get('.gitignore'))).toContain('node_modules')
