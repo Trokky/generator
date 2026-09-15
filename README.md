@@ -7,6 +7,12 @@ much of the stack you want.
 npm create trokky@latest
 ```
 
+Not on npm yet? It runs straight from the repo, no install:
+
+```bash
+npx github:Trokky/generator my-site
+```
+
 ```
 Where will it run?
   1) Cloudflare Workers — No server, no disk. D1 + R2.
