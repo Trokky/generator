@@ -5,7 +5,7 @@
  * sharp cannot run on Workers, it knows how to apply a constraint that says so.
  */
 
-import { manifest, type AxisId, type Constraint } from './manifest.js'
+import { manifest, type AxisId, type Constraint, type Template } from './manifest.js'
 import type { ProjectConfig } from './config.js'
 
 export interface Problem {
@@ -69,6 +69,20 @@ export function validate(config: Partial<ProjectConfig>): ValidationResult {
 export function optionsFor(axisId: AxisId, config: Partial<ProjectConfig>): string[] {
   const all = manifest.axes.find(a => a.id === axisId)?.options.map(o => o.id) ?? []
   return all.filter(option => validate({ ...config, [axisId]: option }).valid)
+}
+
+/**
+ * The published repository that is exactly this composition, if there is one.
+ *
+ * Only an exact match counts. A template that differs in any axis would deploy something other
+ * than what the caller chose, which is worse than offering no button at all.
+ */
+export function templateFor(config: Partial<ProjectConfig>): Template | null {
+  return (
+    manifest.templates.find(template =>
+      Object.entries(template.composition).every(([axis, value]) => config[axis as AxisId] === value),
+    ) ?? null
+  )
 }
 
 export function describe(problems: Problem[]): string {

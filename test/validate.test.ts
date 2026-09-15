@@ -6,7 +6,9 @@
 
 import { describe, it, expect } from 'vitest'
 import { manifest } from '../src/manifest.js'
-import { validate, optionsFor, describe as describeProblems } from '../src/validate.js'
+import { validate, optionsFor, templateFor, describe as describeProblems } from '../src/validate.js'
+import { generate } from '../src/generate.js'
+import { fsFileSource } from '../src/files-node.js'
 import { withDefaults } from '../src/config.js'
 
 const workers = { name: 'x', target: 'workers' as const }
@@ -142,5 +144,33 @@ describe('the valid space', () => {
     // Workers: 1 data x 1 media x 2 images x 5 = 10
     // Node:    2 data x 1 media x 2 images x 5 = 20
     expect(valid).toBe(30)
+  })
+})
+
+describe('templates: the only compositions a Deploy button can serve', () => {
+  it('matches the default edge composition to the magazine template', () => {
+    const template = templateFor(withDefaults({ name: 'x', target: 'workers' }))
+    expect(template?.id).toBe('magazine')
+    expect(template?.deployButton).toContain('deploy.workers.cloudflare.com')
+    expect(template?.deployButton).toContain('trokky-template')
+  })
+
+  it('refuses a near-match, because the button would deploy something else', () => {
+    // One axis different is a different project. Offering the button here would hand someone a
+    // site with thumbnails they had just turned off.
+    expect(templateFor(withDefaults({ name: 'x', target: 'workers', images: 'none' }))).toBeNull()
+    expect(templateFor(withDefaults({ name: 'x', target: 'workers', parts: 'api', content: 'blank' }))).toBeNull()
+  })
+
+  it('has no template for Node, so nothing claims one-click there', () => {
+    expect(templateFor(withDefaults({ name: 'x', target: 'node' }))).toBeNull()
+  })
+
+  it('describes a composition that is actually valid and generates', () => {
+    for (const template of manifest.templates) {
+      const config = withDefaults({ name: 'x', ...template.composition } as never)
+      expect(validate(config).valid, template.id).toBe(true)
+      expect(() => generate(config, fsFileSource()), template.id).not.toThrow()
+    }
   })
 })

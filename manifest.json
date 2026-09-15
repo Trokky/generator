@@ -243,5 +243,21 @@
         "why": "Lets the first visitor claim the instance as administrator."
       }
     ]
-  }
+  },
+  "templates": [
+    {
+      "id": "magazine",
+      "title": "The magazine template",
+      "repo": "https://github.com/Trokky/trokky-template",
+      "deployButton": "https://deploy.workers.cloudflare.com/?url=https://github.com/Trokky/trokky-template",
+      "composition": {
+        "target": "workers",
+        "data": "cloudflare-d1",
+        "media": "cloudflare-r2",
+        "images": "cloudflare-images",
+        "parts": "full-site",
+        "content": "magazine"
+      }
+    }
+  ]
 }

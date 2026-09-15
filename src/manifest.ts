@@ -42,12 +42,29 @@ export interface Secret {
   why: string
 }
 
+/**
+ * A composition that also exists as a published repository.
+ *
+ * This is what makes one-click deployment possible at all: Cloudflare's Deploy button takes a
+ * public repo URL, and a bundle composed in a browser does not have one. Where a composition
+ * matches a template exactly, the button can serve it; everywhere else it cannot, and saying so
+ * is better than pretending.
+ */
+export interface Template {
+  id: string
+  title: string
+  repo: string
+  deployButton: string
+  composition: Partial<Record<AxisId, string>>
+}
+
 export interface Manifest {
   manifestVersion: number
   axes: Axis[]
   constraints: Constraint[]
   defaults: Record<string, Partial<Record<AxisId, string>>>
   secrets: Record<string, Secret[]>
+  templates: Template[]
 }
 
 export const manifest = manifestJson as unknown as Manifest
