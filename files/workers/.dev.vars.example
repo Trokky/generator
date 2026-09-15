@@ -1,0 +1,11 @@
+# Secrets for this Worker. Cloudflare's deploy button asks for these; `wrangler dev` reads
+# them from a `.dev.vars` file locally. GENERATE both — do not invent them:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Signs sessions and tokens. Must stay the same across deploys or every login is invalidated.
+TROKKY_JWT_SECRET=
+
+# Lets the first person to open Studio claim the instance as its administrator.
+# It is a one-time token you type once, not a password to remember. Without it the claim
+# is open to whoever reaches the URL first.
+TROKKY_CLAIM_SECRET=

@@ -1,0 +1,21 @@
+---
+import Base from '../../layouts/Base.astro'
+import { load } from '../../trokky/page'
+import { mediaUrl, formatDate } from '../../trokky/site'
+const s = await load()
+const articles = await s.articles()
+---
+<Base title="Articles" settings={s.settings}>
+  <h1>Articles</h1>
+  <ul class="grid">
+    {articles.map(a => (
+      <li class="card">
+        <a href={`/articles/${a.slug}`}>
+          {mediaUrl(a.cover, 'thumbnail') && <img src={mediaUrl(a.cover, 'thumbnail')} alt="" />}
+          <h3>{a.title}</h3>
+        </a>
+        <p>{formatDate(a.publishedAt)} — {a.excerpt}</p>
+      </li>
+    ))}
+  </ul>
+</Base>

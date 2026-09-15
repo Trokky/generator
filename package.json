@@ -1,0 +1,47 @@
+{
+  "name": "create-trokky",
+  "version": "0.1.0",
+  "description": "Compose a Trokky project: pick the target, adapters and parts you want.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Trokky/generator.git"
+  },
+  "bin": {
+    "create-trokky": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./manifest.json": "./manifest.json"
+  },
+  "files": [
+    "dist",
+    "files",
+    "manifest.json"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.4",
+    "@types/node": "^22.0.0"
+  },
+  "keywords": [
+    "trokky",
+    "cms",
+    "scaffold",
+    "generator",
+    "cloudflare-workers"
+  ]
+}

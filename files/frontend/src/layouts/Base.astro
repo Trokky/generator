@@ -1,0 +1,55 @@
+---
+import { mediaUrl } from '../trokky/site'
+interface Props { title?: string; settings: Record<string, any> | null; description?: string }
+const { title, settings, description } = Astro.props
+const siteName = settings?.siteName ?? 'The Magazine'
+const nav: { label: string; href: string }[] = settings?.navigation ?? []
+const logo = mediaUrl(settings?.logo, 'thumbnail')
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title ? `${title} — ${siteName}` : siteName}</title>
+    {description && <meta name="description" content={description} />}
+    <style is:global>
+      :root { --ink: #1a1a1a; --muted: #666; --line: #e5e5e5; --accent: #2b6cb0; --bg: #fff; }
+      @media (prefers-color-scheme: dark) { :root { --ink: #ececec; --muted: #9a9a9a; --line: #2a2a2a; --accent: #7ab0f5; --bg: #111; } }
+      * { box-sizing: border-box }
+      body { margin: 0; font: 17px/1.6 Georgia, "Times New Roman", serif; color: var(--ink); background: var(--bg) }
+      a { color: var(--accent); text-decoration: none } a:hover { text-decoration: underline }
+      .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px }
+      header { border-bottom: 1px solid var(--line); padding: 20px 0; font-family: system-ui, sans-serif }
+      header .wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap }
+      header .brand { font-weight: 700; font-size: 20px; color: var(--ink); display: flex; align-items: center; gap: 10px }
+      header .brand img { height: 32px; width: auto }
+      header nav { display: flex; gap: 18px; margin-left: auto } header nav a { color: var(--ink) }
+      header .tag { width: 100%; color: var(--muted); font-size: 14px; margin: 0 }
+      main { padding: 36px 0 } h1 { font-size: 2.2rem; line-height: 1.15; margin: 0 0 8px }
+      .meta { color: var(--muted); font-family: system-ui, sans-serif; font-size: 14px; margin-bottom: 24px }
+      .lead { font-size: 1.15rem; color: var(--muted) }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 28px; list-style: none; padding: 0; margin: 0 }
+      .card img { width: 100%; aspect-ratio: 3/2; object-fit: cover; border-radius: 6px; background: var(--line) }
+      .card a { color: var(--ink) } .card a:hover { text-decoration: none } .card a:hover h3 { color: var(--accent) }
+      .card h3 { margin: 12px 0 6px; font-size: 1.2rem; line-height: 1.3; font-family: system-ui, sans-serif } .card p { margin: 0; color: var(--muted); font-size: .95rem }
+      h1 a { color: var(--ink) } h1 a:hover { color: var(--accent); text-decoration: none }
+      h2.section { font-family: system-ui, sans-serif; font-size: 1.1rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 48px 0 20px }
+      .cover { width: 100%; max-height: 520px; object-fit: cover; border-radius: 8px; margin: 0 0 24px }
+      .body :is(h2, h3) { font-family: system-ui, sans-serif; margin-top: 1.8em } .body img { max-width: 100% }
+      .related { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 24px }
+      footer { border-top: 1px solid var(--line); color: var(--muted); font-family: system-ui, sans-serif; font-size: 14px; padding: 24px 0 40px }
+      .studio { position: fixed; right: 16px; bottom: 16px; font: 13px system-ui, sans-serif; background: var(--accent); color: #fff; padding: 8px 12px; border-radius: 999px; opacity: .9 }
+    </style>
+  </head>
+  <body>
+    <header><div class="wrap">
+      <a class="brand" href="/">{logo && <img src={logo} alt="" />}{siteName}</a>
+      <nav>{nav.map(item => <a href={item.href}>{item.label}</a>)}</nav>
+      {settings?.tagline && <p class="tag">{settings.tagline}</p>}
+    </div></header>
+    <main><div class="wrap"><slot /></div></main>
+    <footer><div class="wrap">{settings?.footer ?? 'Published with Trokky.'}</div></footer>
+    <a class="studio" href="/studio">Edit in Studio →</a>
+  </body>
+</html>

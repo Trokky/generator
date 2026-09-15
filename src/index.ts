@@ -1,0 +1,5 @@
+export { manifest, axis, type Manifest, type Axis, type Option, type Constraint, type AxisId } from './manifest.js'
+export { withDefaults, hasStudio, hasFrontend, type ProjectConfig, type PartialConfig } from './config.js'
+export { validate, optionsFor, describe, type ValidationResult, type Problem } from './validate.js'
+export { generate, type FileTree } from './generate.js'
+export * as emit from './emit.js'

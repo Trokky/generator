@@ -1,0 +1,19 @@
+---
+import Base from '../layouts/Base.astro'
+import { load } from '../trokky/page'
+import { mediaUrl, formatDate } from '../trokky/site'
+const s = await load()
+const docs = await s.documents()
+---
+<Base title="Documents" settings={s.settings}>
+  <h1>Documents</h1>
+  {docs.length === 0 && <p class="lead">No documents yet. Upload a PDF under <a href="/studio">Documents</a> in Studio.</p>}
+  <ul style="list-style:none;padding:0">
+    {docs.map(d => (
+      <li style="padding:16px 0;border-bottom:1px solid var(--line)">
+        <h3 style="margin:0 0 4px"><a href={mediaUrl(d.file) ?? '#'}>{d.title}</a></h3>
+        <p class="meta" style="margin:0">{formatDate(d.publishedAt)}{d.summary && ` — ${d.summary}`}</p>
+      </li>
+    ))}
+  </ul>
+</Base>

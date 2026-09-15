@@ -1,0 +1,19 @@
+---
+import Base from '../../layouts/Base.astro'
+import { load } from '../../trokky/page'
+import { mediaUrl, formatDate } from '../../trokky/site'
+const s = await load()
+const item = await s.authorBySlug(Astro.params.slug!)
+if (!item) return new Response(null, { status: 404 })
+const articles = await s.articlesBy('author', item.id)
+---
+<Base title={item.name} settings={s.settings}>
+  <h1>{item.name}</h1>
+  {item.role && <p class="meta">{item.role}</p>}
+  {(item.bio ?? item.description) && <p class="lead">{item.bio ?? item.description}</p>}
+  <ul class="grid">
+    {articles.map(a => (
+      <li class="card"><a href={`/articles/${a.slug}`}>{mediaUrl(a.cover, 'thumbnail') && <img src={mediaUrl(a.cover, 'thumbnail')} alt="" />}<h3>{a.title}</h3></a><p>{formatDate(a.publishedAt)}</p></li>
+    ))}
+  </ul>
+</Base>

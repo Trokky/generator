@@ -1,0 +1,247 @@
+{
+  "manifestVersion": 1,
+  "axes": [
+    {
+      "id": "target",
+      "title": "Where will it run?",
+      "options": [
+        {
+          "id": "workers",
+          "title": "Cloudflare Workers",
+          "hint": "No server, no disk. D1 + R2."
+        },
+        {
+          "id": "node",
+          "title": "Node / Express",
+          "hint": "A server you run: VPS, Docker, Railway."
+        }
+      ]
+    },
+    {
+      "id": "data",
+      "title": "Where does content live?",
+      "options": [
+        {
+          "id": "filesystem-data",
+          "title": "JSON files on disk",
+          "hint": "Readable, diffable, committable."
+        },
+        {
+          "id": "postgres-data",
+          "title": "PostgreSQL",
+          "hint": "For more than one editor."
+        },
+        {
+          "id": "cloudflare-d1",
+          "title": "Cloudflare D1",
+          "hint": "SQLite at the edge."
+        }
+      ]
+    },
+    {
+      "id": "media",
+      "title": "Where do uploads live?",
+      "options": [
+        {
+          "id": "filesystem-media",
+          "title": "Files on disk",
+          "hint": "Needs a path that survives a restart."
+        },
+        {
+          "id": "cloudflare-r2",
+          "title": "Cloudflare R2",
+          "hint": "Object storage, no disk."
+        }
+      ]
+    },
+    {
+      "id": "images",
+      "title": "How are thumbnails made?",
+      "options": [
+        {
+          "id": "sharp",
+          "title": "sharp",
+          "hint": "Local processing. Node only."
+        },
+        {
+          "id": "cloudflare-images",
+          "title": "Cloudflare Images",
+          "hint": "At upload, through the binding."
+        },
+        {
+          "id": "none",
+          "title": "None",
+          "hint": "Store originals only."
+        }
+      ]
+    },
+    {
+      "id": "parts",
+      "title": "What do you want?",
+      "options": [
+        {
+          "id": "api",
+          "title": "API only",
+          "hint": "Headless. Bring your own frontend."
+        },
+        {
+          "id": "studio",
+          "title": "API + Studio",
+          "hint": "The admin UI, for editors."
+        },
+        {
+          "id": "full-site",
+          "title": "API + Studio + a site",
+          "hint": "An Astro frontend as well."
+        }
+      ]
+    },
+    {
+      "id": "content",
+      "title": "Start with content?",
+      "options": [
+        {
+          "id": "blank",
+          "title": "Blank",
+          "hint": "No schemas. Write your own."
+        },
+        {
+          "id": "magazine",
+          "title": "Magazine",
+          "hint": "Articles, authors, categories, documents, pages."
+        }
+      ]
+    }
+  ],
+  "constraints": [
+    {
+      "id": "workers-data",
+      "when": {
+        "target": "workers"
+      },
+      "allow": {
+        "data": [
+          "cloudflare-d1"
+        ]
+      },
+      "because": "A Worker has no disk, and the Postgres adapter needs a TCP client. D1 is the data store at the edge."
+    },
+    {
+      "id": "workers-media",
+      "when": {
+        "target": "workers"
+      },
+      "allow": {
+        "media": [
+          "cloudflare-r2"
+        ]
+      },
+      "because": "A Worker has no disk. R2 is the only media adapter that does not need one."
+    },
+    {
+      "id": "workers-images",
+      "when": {
+        "target": "workers"
+      },
+      "allow": {
+        "images": [
+          "cloudflare-images",
+          "none"
+        ]
+      },
+      "because": "sharp is a native libvips binding and Workers runs no native code."
+    },
+    {
+      "id": "node-data",
+      "when": {
+        "target": "node"
+      },
+      "allow": {
+        "data": [
+          "filesystem-data",
+          "postgres-data"
+        ]
+      },
+      "because": "D1 arrives as a Worker binding; there is nothing for a Node process to connect to."
+    },
+    {
+      "id": "node-media",
+      "when": {
+        "target": "node"
+      },
+      "allow": {
+        "media": [
+          "filesystem-media"
+        ]
+      },
+      "because": "R2 arrives as a Worker binding. There is no S3-compatible media adapter yet."
+    },
+    {
+      "id": "node-images",
+      "when": {
+        "target": "node"
+      },
+      "allow": {
+        "images": [
+          "sharp",
+          "none"
+        ]
+      },
+      "because": "The Cloudflare Images binding only exists inside a Worker."
+    },
+    {
+      "id": "content-needs-schemas",
+      "when": {
+        "parts": "full-site"
+      },
+      "allow": {
+        "content": [
+          "magazine"
+        ]
+      },
+      "because": "A site needs something to render. Choose the magazine content model, or drop the frontend."
+    }
+  ],
+  "defaults": {
+    "workers": {
+      "data": "cloudflare-d1",
+      "media": "cloudflare-r2",
+      "images": "cloudflare-images",
+      "parts": "full-site",
+      "content": "magazine"
+    },
+    "node": {
+      "data": "filesystem-data",
+      "media": "filesystem-media",
+      "images": "sharp",
+      "parts": "studio",
+      "content": "magazine"
+    }
+  },
+  "secrets": {
+    "workers": [
+      {
+        "name": "TROKKY_JWT_SECRET",
+        "generate": "hex32",
+        "why": "Signs sessions and tokens. Must stay the same across deploys."
+      },
+      {
+        "name": "TROKKY_CLAIM_SECRET",
+        "generate": "hex24",
+        "why": "Lets the first visitor claim the instance as administrator."
+      }
+    ],
+    "node": [
+      {
+        "name": "TROKKY_JWT_SECRET",
+        "generate": "hex32",
+        "why": "Signs sessions and tokens. Must stay the same across restarts."
+      },
+      {
+        "name": "TROKKY_CLAIM_SECRET",
+        "generate": "hex24",
+        "why": "Lets the first visitor claim the instance as administrator."
+      }
+    ]
+  }
+}

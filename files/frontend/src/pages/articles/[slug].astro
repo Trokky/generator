@@ -1,0 +1,30 @@
+---
+import Base from '../../layouts/Base.astro'
+import { load } from '../../trokky/page'
+import { mediaUrl, formatDate } from '../../trokky/site'
+const s = await load()
+const article = await s.article(Astro.params.slug!)
+if (!article) return new Response(null, { status: 404 })
+const author = article.author ? await s.author(article.author) : null
+const category = article.category ? await s.category(article.category) : null
+const related = Array.isArray(article.related) ? await s.articlesIn(article.related) : []
+---
+<Base title={article.title} settings={s.settings} description={article.excerpt}>
+  <article>
+    {mediaUrl(article.cover, 'large') && <img class="cover" src={mediaUrl(article.cover, 'large')} alt="" />}
+    <h1>{article.title}</h1>
+    <p class="meta">
+      {author && <a href={`/authors/${author.slug}`}>{author.name}</a>}{author && ' · '}
+      {category && <a href={`/categories/${category.slug}`}>{category.name}</a>}{category && ' · '}
+      {formatDate(article.publishedAt)}
+    </p>
+    {article.excerpt && <p class="lead">{article.excerpt}</p>}
+    <div class="body" set:html={article.body ?? ''} />
+  </article>
+  {related.length > 0 && (
+    <section class="related">
+      <h2 class="section">Related</h2>
+      <ul class="grid">{related.map(r => <li class="card"><a href={`/articles/${r.slug}`}><h3>{r.title}</h3></a><p>{r.excerpt}</p></li>)}</ul>
+    </section>
+  )}
+</Base>

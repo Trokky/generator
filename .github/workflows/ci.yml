@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  unit:
+    name: Unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+
+  matrix:
+    name: Generate and boot
+    runs-on: ubuntu-latest
+    # A generated project that does not run is the only failure that matters here, and it takes
+    # an install per case — so it runs after the unit tests have had their cheap say.
+    needs: unit
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [workers-full, workers-studio, workers-api, node-studio, node-api, node-postgres]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/smoke.mjs --only=${{ matrix.case }}

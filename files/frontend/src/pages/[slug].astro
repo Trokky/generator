@@ -1,0 +1,11 @@
+---
+import Base from '../layouts/Base.astro'
+import { load } from '../trokky/page'
+const s = await load()
+const page = await s.page(Astro.params.slug!)
+if (!page) return new Response(null, { status: 404 })
+---
+<Base title={page.title} settings={s.settings}>
+  <h1>{page.title}</h1>
+  <div class="body" set:html={page.body ?? ''} />
+</Base>

@@ -1,0 +1,35 @@
+---
+import Base from '../layouts/Base.astro'
+import { load } from '../trokky/page'
+import { mediaUrl, formatDate } from '../trokky/site'
+const s = await load()
+const featured = await s.featured()
+const latest = (await s.articles(9)).filter(a => a.id !== featured?.id)
+const authorOf = async (a: any) => a.author ? await s.author(a.author) : null
+const featuredAuthor = featured ? await authorOf(featured) : null
+---
+<Base settings={s.settings} description={s.settings?.tagline}>
+  {featured && (
+    <article>
+      {mediaUrl(featured.cover, 'large') && <img class="cover" src={mediaUrl(featured.cover, 'large')} alt="" />}
+      <h1><a href={`/articles/${featured.slug}`}>{featured.title}</a></h1>
+      <p class="meta">{featuredAuthor?.name}{featuredAuthor && ' · '}{formatDate(featured.publishedAt)}</p>
+      <p class="lead">{featured.excerpt}</p>
+    </article>
+  )}
+  {latest.length > 0 && <h2 class="section">Latest</h2>}
+  <ul class="grid">
+    {latest.map(a => (
+      <li class="card">
+        <a href={`/articles/${a.slug}`}>
+          {mediaUrl(a.cover, 'thumbnail') && <img src={mediaUrl(a.cover, 'thumbnail')} alt="" />}
+          <h3>{a.title}</h3>
+        </a>
+        <p>{a.excerpt}</p>
+      </li>
+    ))}
+  </ul>
+  {!featured && latest.length === 0 && (
+    <p class="lead">Nothing published yet. Open <a href="/studio">Studio</a> to write the first article.</p>
+  )}
+</Base>

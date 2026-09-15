@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+.dev.vars
+# Copied from @trokky/studio at build time; never hand-edited.
+public/studio/
