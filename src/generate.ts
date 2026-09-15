@@ -3,7 +3,7 @@
  * function serves the CLI, a zip download and an API install.
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ProjectConfig } from './config.js'
@@ -17,17 +17,27 @@ const FILES = join(here, '..', 'files')
 
 export type FileTree = Map<string, string | Uint8Array>
 
-/** Which copied file sets a composition pulls in, in order. */
+/**
+ * Which copied file sets a composition pulls in, in order.
+ *
+ * There is deliberately no `node` set: every file a Node project needs has contents that depend
+ * on the choices, so all of it is emitted. An empty directory would not survive git or npm
+ * anyway — it did not, and the failure was a scandir error on a user's machine.
+ */
 function sources(config: ProjectConfig): string[] {
   const sets = ['base']
   if (config.target === 'workers') sets.push('workers')
-  else sets.push('node')
   if (config.content !== 'blank') sets.push(`content/${config.content}`)
   if (hasFrontend(config)) sets.push('frontend')
   return sets
 }
 
 function copyInto(tree: FileTree, root: string, prefixToStrip = ''): void {
+  // Loud, not silent: a set that is missing from the package is a packaging bug, and skipping it
+  // would produce a project quietly short of files instead of an error anyone can act on.
+  if (!existsSync(root)) {
+    throw new Error(`File set missing from the package: ${root}. Check the "files" field and npm's ignore rules.`)
+  }
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir)) {
       const full = join(dir, entry)
@@ -36,7 +46,11 @@ function copyInto(tree: FileTree, root: string, prefixToStrip = ''): void {
         continue
       }
       const rel = relative(root, full).split(sep).join('/')
-      const target = prefixToStrip && rel.startsWith(prefixToStrip) ? rel.slice(prefixToStrip.length) : rel
+      // npm refuses to ship a .gitignore inside a package — it is on its always-ignored list —
+      // so the template keeps it dotless and it is restored here. Miss this and the file set it
+      // lives in arrives empty, which is a scandir error at generate time, not at publish time.
+      const named = rel.replace(/(^|\/)gitignore$/, '$1.gitignore')
+      const target = prefixToStrip && named.startsWith(prefixToStrip) ? named.slice(prefixToStrip.length) : named
       // Text where we can, bytes where we must: the seed images and PDFs are binary.
       const binary = /\.(jpg|jpeg|png|gif|webp|pdf|ico|woff2?)$/i.test(rel)
       tree.set(target, binary ? new Uint8Array(readFileSync(full)) : readFileSync(full, 'utf8'))

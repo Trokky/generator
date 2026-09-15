@@ -72,6 +72,14 @@ const files = generate(withDefaults({ name: 'my-site', target: 'workers' }))
 
 `generate` is pure so the same function serves the CLI, a zip download and an API install.
 
+## Releasing
+
+Tag a version and the workflow publishes it. Before it does, it installs the packed tarball into
+an empty project and generates from *that* — because `files/` is most of this package, and npm's
+own ignore rules can quietly drop parts of it. Both failures that shipped this way looked perfect
+in the source tree: `.gitignore` is never packaged, and an empty directory survives neither git
+nor npm.
+
 ## Development
 
 ```bash

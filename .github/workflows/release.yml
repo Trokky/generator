@@ -1,0 +1,49 @@
+name: Release
+
+# Publishing is deliberate: tag a version and it goes out. There is no publish-on-merge here,
+# because the package's whole job is to hand strangers a working project.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+
+      # The tarball is what users get, so it is what gets exercised: install it into an empty
+      # project and generate from it. This is the check that caught files/base and files/node
+      # arriving empty — both of which looked perfect in the source tree.
+      - name: Generate from the packed tarball
+        run: |
+          npm run build
+          npm pack
+          tarball="$(ls create-trokky-*.tgz)"
+          work="$(mktemp -d)"
+          cd "$work"
+          npm init -y > /dev/null
+          npm install "$GITHUB_WORKSPACE/$tarball" --no-audit --no-fund
+          npx create-trokky probe --yes --out="$work/out" --target=node --parts=studio
+          test -f "$work/out/.gitignore"
+          test -f "$work/out/src/server.ts"
+          test "$(find "$work/out" -path '*seed*' -type f | wc -l)" -ge 12
+
+      - name: Publish
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
