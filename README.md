@@ -74,7 +74,12 @@ const files = generate(withDefaults({ name: 'my-site', target: 'workers' }))
 
 ## Releasing
 
-Tag a version and the workflow publishes it. Before it does, it installs the packed tarball into
+Tag a version and the workflow publishes it, authenticating through npm **trusted publishing**:
+GitHub Actions mints a short-lived OIDC token and npm exchanges it for publish rights, so no
+long-lived token lives in this repo. npm attaches a provenance attestation automatically.
+
+Requires npm CLI 11.5.1 or later, which is why the workflow upgrades npm before publishing —
+Node 22 ships npm 10, and without the upgrade npm quietly falls back to looking for a token. Before it does, it installs the packed tarball into
 an empty project and generates from *that* — because `files/` is most of this package, and npm's
 own ignore rules can quietly drop parts of it. Both failures that shipped this way looked perfect
 in the source tree: `.gitignore` is never packaged, and an empty directory survives neither git

@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Trusted publishing: npm exchanges this short-lived OIDC token for publish rights, so
+      # there is no long-lived NPM_TOKEN sitting in the repo to leak or rotate.
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +23,10 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+
+      # Node 22 ships npm 10; trusted publishing needs 11.5.1 or later, and silently falls back
+      # to looking for a token without it.
+      - run: npm install -g npm@latest
 
       - run: npm ci
       - run: npm run check
@@ -43,7 +49,7 @@ jobs:
           test -f "$work/out/src/server.ts"
           test "$(find "$work/out" -path '*seed*' -type f | wc -l)" -ge 12
 
+      # No token: the OIDC exchange above authenticates this, and npm attaches a provenance
+      # attestation on its own — `--provenance` is not needed and is implied.
       - name: Publish
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
