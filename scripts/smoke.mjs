@@ -136,8 +136,10 @@ async function smoke(testCase) {
       notes.push('thumbnails')
     }
   } finally {
+    // wrangler spawns workerd beneath it; give the whole tree a moment to let go of the
+    // directory before anything tries to remove it.
     child.kill('SIGTERM')
-    await sleep(500)
+    await sleep(1500)
   }
 
   return notes.join(', ')
@@ -155,6 +157,17 @@ for (const testCase of CASES) {
   }
 }
 
-if (!keep) rmSync(root, { recursive: true, force: true })
-else console.log(`\nprojects left in ${root}`)
+if (keep) {
+  console.log(`\nprojects left in ${root}`)
+} else {
+  try {
+    // A process that has not quite exited can still be writing into node_modules, and a
+    // temp directory that refuses to be deleted is not a test failure. Retry, then let it be:
+    // the runner is thrown away, and /tmp is the operating system's problem.
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 })
+  } catch (error) {
+    console.warn(`could not remove ${root}: ${error instanceof Error ? error.message : error}`)
+  }
+}
+
 process.exit(failed === 0 ? 0 : 1)
