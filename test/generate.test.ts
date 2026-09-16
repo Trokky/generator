@@ -193,3 +193,79 @@ describe('the README tells the truth about what was built', () => {
     expect(readme).toContain('claim')
   })
 })
+
+describe('the env example describes only storage that exists', () => {
+  const envOf = (flags: Record<string, string>): string => {
+    const config = withDefaults({ name: 'x', ...flags } as never)
+    const tree = generate(config, source)
+    return (tree.get('.env.example') ?? tree.get('.dev.vars.example')) as string
+  }
+
+  it('never mentions a data directory on Workers, which has no disk', () => {
+    const env = envOf({ target: 'workers', parts: 'full-site', content: 'magazine' })
+    // This shipped: the deployer's first file described a disk the runtime does not have.
+    expect(env).not.toContain('TROKKY_DATA_DIR')
+    expect(env).toContain('TROKKY_JWT_SECRET')
+  })
+
+  it('never mentions a data directory when nothing is on disk', () => {
+    const env = envOf({ target: 'node', data: 'postgres-data', media: 's3-media', parts: 'studio', content: 'magazine' })
+    expect(env).not.toContain('TROKKY_DATA_DIR')
+    expect(env).toContain('DATABASE_URL')
+    expect(env).toContain('S3_ENDPOINT')
+  })
+
+  it('names only what actually lands on disk', () => {
+    const contentOnly = envOf({ target: 'node', data: 'filesystem-data', media: 's3-media', parts: 'studio', content: 'magazine' })
+    expect(contentOnly).toContain('# Where content is written')
+    expect(contentOnly).not.toContain('uploads')
+
+    const both = envOf({ target: 'node', data: 'filesystem-data', media: 'filesystem-media', parts: 'studio', content: 'magazine' })
+    expect(both).toContain('# Where content and uploads are written')
+  })
+
+  it('wraps a long reason instead of running off the edge', () => {
+    const env = envOf({ target: 'workers', parts: 'studio', content: 'magazine' })
+    for (const line of env.split('\n')) {
+      expect(line.length, line).toBeLessThanOrEqual(92)
+    }
+  })
+})
+
+describe('nothing describes storage a composition does not have', () => {
+  const configOf = (flags: Record<string, string>): string => {
+    const config = withDefaults({ name: 'x', ...flags } as never)
+    return generate(config, source).get('trokky.config.ts') as string
+  }
+
+  it('omits the data directory entirely when nothing is on disk', () => {
+    const cfg = configOf({ target: 'node', data: 'postgres-data', media: 's3-media', parts: 'studio', content: 'magazine' })
+    // A dead const reading an env var that appears in no file is the last place a reader
+    // could infer a disk that is not there.
+    expect(cfg).not.toContain('dataDir')
+    expect(cfg).not.toContain('node:path')
+  })
+
+  it('keeps it when either side is filesystem-backed', () => {
+    for (const flags of [
+      { data: 'filesystem-data', media: 's3-media' },
+      { data: 'postgres-data', media: 'filesystem-media' },
+    ]) {
+      const cfg = configOf({ target: 'node', parts: 'studio', content: 'magazine', ...flags })
+      expect(cfg, JSON.stringify(flags)).toContain('dataDir')
+      expect(cfg, JSON.stringify(flags)).toContain('node:path')
+    }
+  })
+})
+
+describe('the Workers entry reads as a sentence', () => {
+  it('does not say "One deployment, one deployment"', () => {
+    for (const parts of ['api', 'studio', 'full-site'] as const) {
+      const content = parts === 'full-site' ? 'magazine' : 'blank'
+      const config = withDefaults({ name: 'x', target: 'workers', parts, content } as never)
+      const worker = generate(config, source).get('src/worker.ts') as string
+      const header = worker.split('\n')[1]
+      expect(header, parts).toMatch(/^ \* The Worker\. (One thing,|Two things share|Three things share) one deployment:$/)
+    }
+  })
+})

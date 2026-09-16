@@ -256,12 +256,12 @@
         {
           "name": "TROKKY_JWT_SECRET",
           "generate": "hex32",
-          "why": "Signs sessions and tokens. Must stay the same across deploys."
+          "why": "Signs sessions and tokens. Must stay the same across deploys, or every login is invalidated."
         },
         {
           "name": "TROKKY_CLAIM_SECRET",
           "generate": "hex24",
-          "why": "Lets the first visitor claim the instance as administrator."
+          "why": "Lets the first person to open Studio claim the instance as its administrator. A one-time token you type once, not a password to remember. Without it the claim is open to whoever reaches the URL first."
         }
       ]
     },
@@ -273,12 +273,12 @@
         {
           "name": "TROKKY_JWT_SECRET",
           "generate": "hex32",
-          "why": "Signs sessions and tokens. Must stay the same across restarts."
+          "why": "Signs sessions and tokens. Must stay the same across restarts, or every login is invalidated."
         },
         {
           "name": "TROKKY_CLAIM_SECRET",
           "generate": "hex24",
-          "why": "Lets the first visitor claim the instance as administrator."
+          "why": "Lets the first person to open Studio claim the instance as its administrator. A one-time token you type once, not a password to remember. Without it the claim is open to whoever reaches the URL first."
         }
       ]
     },

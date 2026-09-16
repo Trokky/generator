@@ -275,9 +275,9 @@ export function workersEntry(config: ProjectConfig): string {
   const seeds = config.content !== 'blank'
   const parts = [
     `/**
- * The Worker.
+ * The Worker. ${hasFrontend(config) ? 'Three things share one deployment:' : hasStudio(config) ? 'Two things share one deployment:' : 'One thing, one deployment:'}
  *
-${hasFrontend(config) ? ' *   /api/*     the Trokky API\n *   /studio/*  the Studio, served from static assets\n *   /*         the site, rendered on request\n' : hasStudio(config) ? ' *   /api/*     the Trokky API\n *   /studio/*  the Studio, served from static assets\n' : ' *   /api/*     the Trokky API\n'} */`,
+${hasFrontend(config) ? ' *   /api/*     the Trokky API\n *   /studio/*  the Studio, served from static assets\n *   /*         the Astro site, rendered on request\n *\n * Astro\'s handler is wrapped rather than replaced: wrangler\'s `main` points here, and Astro\'s\n * own handler is imported for everything that is not Trokky\'s.\n' : hasStudio(config) ? ' *   /api/*     the Trokky API\n *   /studio/*  the Studio, served from static assets\n' : ' *   /api/*     the Trokky API\n'} */`,
   ]
   if (hasFrontend(config)) parts.push(`import { handle } from '@astrojs/cloudflare/handler'`)
   parts.push(`import { getTrokky, API_PATH${hasStudio(config) ? ', STUDIO_PATH' : ''}, type TrokkyEnv } from './trokky/core'`)
@@ -413,16 +413,18 @@ export function trokkyConfig(config: ProjectConfig): string {
       },
     }`
 
+  // Only when something actually lands on disk. Emitting it regardless left a postgres + S3
+  // project with a dead const reading an env var that appears in none of its files -- the last
+  // place a reader could still infer a disk that is not there.
+  const usesDisk = config.data === 'filesystem-data' || config.media === 'filesystem-media'
+
   return `/**
  * Trokky configuration.
  */
-import path from 'node:path'
-import dotenv from 'dotenv'
+${usesDisk ? "import path from 'node:path'\n" : ''}import dotenv from 'dotenv'
 ${config.content === 'blank' ? '' : "import { schemas } from './src/trokky/schemas.js'\nimport { structure } from './src/trokky/structure.js'\n"}
 dotenv.config()
-
-const dataDir = process.env.TROKKY_DATA_DIR ?? path.join(process.cwd(), 'data')
-
+${usesDisk ? "\nconst dataDir = process.env.TROKKY_DATA_DIR ?? path.join(process.cwd(), 'data')\n" : ''}
 export default {
   schemas: ${config.content === 'blank' ? '[]' : 'schemas'},
 ${config.content === 'blank' ? '' : '  structure,\n'}
@@ -458,18 +460,66 @@ ${config.images === 'none' ? '' : `    // Without this list nothing is generated
 `
 }
 
+/** Wrap a `why` into comment lines, so a long one does not run off the edge of the file. */
+const COMMENT_WIDTH = 88
+
+function comment(text: string, width = COMMENT_WIDTH): string[] {
+  const lines: string[] = []
+  let line = '#'
+
+  for (const word of text.trim().split(/\s+/).filter(Boolean)) {
+    if (line.length + 1 + word.length > width && line !== '#') {
+      lines.push(line)
+      line = '#'
+    }
+    line += ` ${word}`
+  }
+
+  if (line !== '#') lines.push(line)
+  return lines.length > 0 ? lines : ['#']
+}
+
 export function envExample(config: ProjectConfig): string {
   const secrets = secretsFor(config)
-  const lines = [
-    '# Generate these; do not invent them:',
-    '#   node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
-    '',
-  ]
+  const edge = config.target === 'workers'
+
+  const lines = edge
+    ? [
+        ...comment("Secrets for this Worker. Cloudflare's deploy button asks for these; `wrangler dev`"),
+        ...comment('reads them from a `.dev.vars` file locally. GENERATE both — do not invent them:'),
+        '#   node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
+        '',
+      ]
+    : [
+        '# Generate these; do not invent them:',
+        '#   node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
+        '',
+      ]
+
   for (const secret of secrets) {
-    lines.push(`# ${secret.why}`, `${secret.name}=`, '')
+    lines.push(...comment(secret.why), `${secret.name}=`, '')
   }
+
   if (config.data === 'postgres-data') lines.push('# Postgres connection string.', 'DATABASE_URL=', '')
-  lines.push('# Where content and uploads are written. Must survive a restart.', 'TROKKY_DATA_DIR=./data', '')
+
+  // Only where something is actually written to disk. A Worker has none, and with s3-media the
+  // uploads are in a bucket — emitting TROKKY_DATA_DIR there described storage that does not
+  // exist, in the one file a deployer reads before their first boot.
+  const onDisk = [
+    config.data === 'filesystem-data' ? 'content' : null,
+    config.media === 'filesystem-media' ? 'uploads' : null,
+  ].filter(Boolean)
+
+  if (!edge && onDisk.length > 0) {
+    // The verb follows the NOUN, not the count: "uploads" is one item and still plural.
+    const plural = onDisk.length > 1 || onDisk.includes('uploads')
+    lines.push(
+      ...comment(`Where ${onDisk.join(' and ')} ${plural ? 'are' : 'is'} written. Must survive a restart.`),
+      'TROKKY_DATA_DIR=./data',
+      ''
+    )
+  }
+
   return lines.join('\n')
 }
 
