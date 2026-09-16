@@ -1,0 +1,168 @@
+name: Template repos
+
+# The repos named in `manifest.templates` are BUILD OUTPUT, not sources.
+#
+# They exist only because Cloudflare's deploy button needs a public repo URL, and a bundle
+# composed in a browser has none. Keeping them by hand meant two copies of one artifact drifting
+# apart with nothing to notice: by 2026-09-16, 16 of trokky-template's 35 files disagreed with
+# what the generator produced for the very composition `manifest.templates` says it is — which is
+# the claim trokky.build shows the deploy button on.
+#
+# So: regenerate from the manifest and push. Nobody edits these repos; an edit there is lost on
+# the next run, and that is the point. Adding a template means adding a `templates` entry, not a
+# repository to maintain.
+
+on:
+  # Gated on CI, NOT on the push. These repos are what trokky.build's public deploy button
+  # points at, so publishing them from a main whose tests never ran would put a broken template
+  # in front of strangers within a minute of a bad merge.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Generate and diff, push nothing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: template-repos
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Read the manifest
+    # `workflow_run` fires on failure too; only a green CI may publish.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      templates: ${{ steps.read.outputs.templates }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          set -euo pipefail
+          echo "templates=$(node -p "JSON.stringify(require('./manifest.json').templates.map(t => t.id))")" >> "$GITHUB_OUTPUT"
+
+  sync:
+    name: ${{ matrix.template }}
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        template: ${{ fromJSON(needs.discover.outputs.templates) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run build
+
+      - name: Generate the template
+        id: gen
+        env:
+          TEMPLATE: ${{ matrix.template }}
+        run: |
+          set -euo pipefail
+          entry="$(node -p "JSON.stringify(require('./manifest.json').templates.find(t => t.id === process.argv[1]))" "$TEMPLATE")"
+
+          # owner/name from the manifest's own URL. Taking only the basename and assuming the
+          # org meant an entry pointing elsewhere would resolve to a same-named Trokky repo and
+          # be force-updated over -- silently, since nothing compared the remote to the manifest.
+          slug="$(node -p "new URL(JSON.parse(process.argv[1]).repo).pathname.replace(/^\/+|\.git$/g, '')" "$entry")"
+          name="${slug##*/}"
+          # An array, not an unquoted string: word splitting is a bash behaviour that zsh does
+          # not share, so a string could only ever be exercised on the runner.
+          IFS=$'\n' read -r -d '' -a flags < <(
+            node -p "Object.entries(JSON.parse(process.argv[1]).composition).map(([k,v]) => '--' + k + '=' + v).join('\n')" "$entry" && printf '\0'
+          )
+
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+          # The project name is the repo name, so wrangler's worker and D1 names match the repo
+          # a deployer just clicked from.
+          node dist/cli.js "$name" --yes --out="$RUNNER_TEMP/out" "${flags[@]}"
+
+          # The generator emits no lockfile -- a scaffolded project should resolve fresh. A
+          # template repo is different: Cloudflare builds it, and a build that runs `npm ci`
+          # fails outright without one. So the lockfile is generated here and committed, which
+          # also keeps it honest with the package.json emitted alongside it.
+          ( cd "$RUNNER_TEMP/out" && npm install --package-lock-only --no-audit --no-fund )
+
+      - name: Check that the sync token exists
+        run: |
+          if [ -z "${{ secrets.TEMPLATE_SYNC_TOKEN }}" ]; then
+            echo "::error::TEMPLATE_SYNC_TOKEN is not set on this repository."
+            echo "These repos live outside Trokky/generator, so the default GITHUB_TOKEN cannot"
+            echo "write to them. Add a fine-grained PAT scoped to ${{ steps.gen.outputs.slug }}"
+            echo "with Contents: read and write (plus Workflows: read and write if a template"
+            echo "repo ever tracks .github/workflows). Without it checkout fails with a bare 401,"
+            echo "which reads like the repo is missing."
+            exit 1
+          fi
+
+      - name: Check out the template repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.gen.outputs.slug }}
+          path: existing
+          token: ${{ secrets.TEMPLATE_SYNC_TOKEN }}
+
+      - name: Replace its contents with the generated tree
+        run: |
+          set -euo pipefail
+          cd existing
+          # Everything tracked goes, so a file the generator stopped emitting disappears too.
+          git rm -rq --ignore-unmatch .
+          # "$src/." copies the CONTENTS; plain "$src" would nest the directory inside itself.
+          # `cp -T` would say the same thing but is GNU-only, so it cannot be tested off-runner.
+          cp -R "$RUNNER_TEMP/out/." .
+          git add -A
+
+      - name: Diff
+        id: diff
+        run: |
+          cd existing
+
+          # `git rm` removed everything, then `git add -A` re-added what is not ignored. A file
+          # the generator emits that the generated .gitignore also matches would therefore be
+          # deleted from the template repo by a job that stayed green.
+          ignored="$(git status --porcelain --ignored | grep '^!!' || true)"
+          if [ -n "$ignored" ]; then
+            echo "::error::The generator emits files its own .gitignore excludes; they would be dropped:"
+            echo "$ignored"
+            exit 1
+          fi
+          # Dependencies are `^` ranges, so `--package-lock-only` re-resolves every run and any
+          # upstream patch flips the lockfile. Pushing on that alone would mean a commit per run,
+          # each implying a change that is not there.
+          if git diff --cached --quiet -- . ':(exclude)package-lock.json'; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No change beyond the lockfile; leaving the template repo alone."
+            git reset -q
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --cached --stat | tail -40
+          fi
+
+      - name: Push
+        if: steps.diff.outputs.changed == 'true' && !inputs.dry_run
+        run: |
+          set -euo pipefail
+          cd existing
+          git config user.name  "trokky-bot"
+          git config user.email "bot@trokky.dev"
+          git commit -q -m "Regenerate from create-trokky ${{ github.sha }}
+
+          This repository is build output. It is regenerated from the generator's
+          \`manifest.templates\` entry on every green CI; edit the generator, not this.
+
+          Composition: ${{ matrix.template }}"
+          git push
