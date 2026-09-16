@@ -89,9 +89,12 @@ async function smoke(testCase) {
 
   if (testCase.env === 's3') {
     // The bucket has to exist before the first upload and object stores do not create one on
-    // demand. Signing happens with the project's own aws4fetch, installed a line ago, so this
-    // needs no S3 client of its own and no second container in CI.
-    run('node', ['-e', `
+    // demand. Signing uses the generated project's own aws4fetch -- a dependency of
+    // @trokky/trokky since the s3-media adapter shipped -- so this needs no S3 client of its
+    // own and no second container in CI. `--input-type=module` because top-level await in
+    // `node -e` otherwise relies on syntax detection that is only default-on from Node 22.7,
+    // and engines allows 20.
+    run('node', ['--input-type=module', '-e', `
       const { AwsClient } = await import('aws4fetch')
       const aws = new AwsClient({
         accessKeyId: process.env.S3_ACCESS_KEY_ID ?? 'minioadmin',
@@ -195,7 +198,7 @@ for (const testCase of CASES) {
     console.log(`ok — ${await smoke(testCase)}`)
   } catch (error) {
     failed++
-    console.log(`FAILED — ${error instanceof Error ? error.message.split('\n')[0] : error}`)
+    console.log(`FAILED — ${error instanceof Error ? [error.message.split('\n')[0], error.stderr?.toString().trim()].filter(Boolean).join(' — ') : error}`)
   }
 }
 

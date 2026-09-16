@@ -465,7 +465,9 @@ export function envExample(config: ProjectConfig): string {
     '#   node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
     '',
   ]
-  for (const secret of secrets) lines.push(`# ${secret.why}`, `${secret.name}=`, '')
+  for (const secret of secrets) {
+    lines.push(`# ${secret.why}`, `${secret.name}=`, '')
+  }
   if (config.data === 'postgres-data') lines.push('# Postgres connection string.', 'DATABASE_URL=', '')
   lines.push('# Where content and uploads are written. Must survive a restart.', 'TROKKY_DATA_DIR=./data', '')
   return lines.join('\n')

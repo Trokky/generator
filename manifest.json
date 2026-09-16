@@ -273,7 +273,7 @@
         {
           "name": "TROKKY_JWT_SECRET",
           "generate": "hex32",
-          "why": "Signs sessions and tokens. Must stay the same across deploys."
+          "why": "Signs sessions and tokens. Must stay the same across restarts."
         },
         {
           "name": "TROKKY_CLAIM_SECRET",
@@ -305,7 +305,8 @@
         },
         {
           "name": "S3_REGION",
-          "why": "SigV4 signs over a region whether or not the backend has one. R2 wants 'auto'."
+          "why": "Optional. SigV4 signs over a region whether or not the backend has one; defaults to 'auto', which is what R2 wants.",
+          "optional": true
         }
       ]
     }

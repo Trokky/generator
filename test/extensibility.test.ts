@@ -84,6 +84,14 @@ describe('groups are a table of contents a surface can render blind', () => {
     }
   })
 
+  it('declares each group once', () => {
+    // A duplicate id passes both checks below — a Set collapses it on one side and `has` is
+    // true on the other — while a configurator that renders one section per entry draws that
+    // group's axes twice, with two sets of radios fighting over one name.
+    const ids = manifest.groups.map(group => group.id)
+    expect(ids).toHaveLength(new Set(ids).size)
+  })
+
   it('declares no group without axes', () => {
     const used = new Set(manifest.axes.map(axis => axis.group))
     for (const group of manifest.groups) {

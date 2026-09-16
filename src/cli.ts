@@ -84,11 +84,11 @@ async function main(): Promise<void> {
   console.log(`  cp ${config.target === 'workers' ? '.dev.vars.example .dev.vars' : '.env.example .env'}`)
   for (const secret of secrets) {
     // Only the generated ones get a value here; an endpoint or a bucket name is yours to fill in.
-    console.log(
-      secret.generate
-        ? `  # ${secret.name}=${randomBytes(secret.generate === 'hex32' ? 32 : 24).toString('hex')}`
-        : `  # ${secret.name}=   (${secret.why})`
-    )
+    if (secret.generate) {
+      console.log(`  # ${secret.name}=${randomBytes(secret.generate === 'hex32' ? 32 : 24).toString('hex')}`)
+    } else {
+      console.log(`  # ${secret.name}=   (${secret.optional ? 'optional — ' : ''}${secret.why})`)
+    }
   }
   console.log('  npm install')
   console.log(config.target === 'workers' ? '  npm run build && npm run preview' : '  npm run dev')

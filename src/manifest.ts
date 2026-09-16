@@ -52,6 +52,8 @@ export interface Secret {
   name: string
   /** Absent means the value is yours to supply — an endpoint, a bucket name, a key. */
   generate?: 'hex32' | 'hex24'
+  /** The emitted config already has a working default; leaving it blank is fine. */
+  optional?: boolean
   why: string
 }
 
