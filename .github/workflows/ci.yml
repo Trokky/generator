@@ -36,12 +36,16 @@ jobs:
       # Only the S3 case needs one, and a service container cannot override an image's command —
       # which MinIO needs — so it is started as a step instead. The bucket is created by the
       # smoke script itself, with the generated project's own signing library.
+      #
+      # quay.io, not Docker Hub: MinIO's images are no longer published there (`minio/minio`
+      # 404s, and so does `minio/mc`). A local `docker run minio/minio` can still succeed from
+      # a cached layer, which is exactly how this reached CI unnoticed.
       - name: Start MinIO
         if: matrix.case == 'node-s3'
         run: |
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio:RELEASE.2026-09-07T16-13-09Z server /data
+            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
           for _ in $(seq 1 30); do
             curl -sf http://127.0.0.1:9000/minio/health/live && break
             sleep 1
