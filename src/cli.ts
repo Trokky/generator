@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline/promises'
 import { stdin, stdout, argv, exit } from 'node:process'
 import { randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
-import { manifest, type AxisId } from './manifest.js'
+import { manifest, secretsFor, type AxisId } from './manifest.js'
 import { withDefaults, type ProjectConfig } from './config.js'
 import { validate, optionsFor, describe } from './validate.js'
 import { generate } from './generate.js'
@@ -76,14 +76,19 @@ async function main(): Promise<void> {
   const target_dir = resolve(flags.out ?? name)
   writeTree(generate(config, fsFileSource()), target_dir)
 
-  const secrets = manifest.secrets[config.target] ?? []
+  const secrets = secretsFor(config)
   console.log(`\nCreated ${config.name} in ${target_dir}\n`)
   console.log(`  ${config.parts === 'api' ? 'API' : config.parts === 'studio' ? 'API + Studio' : 'API + Studio + site'} · ${config.data} · ${config.media} · thumbnails: ${config.images}\n`)
   console.log('Next:')
   console.log(`  cd ${config.name}`)
   console.log(`  cp ${config.target === 'workers' ? '.dev.vars.example .dev.vars' : '.env.example .env'}`)
   for (const secret of secrets) {
-    console.log(`  # ${secret.name}=${randomBytes(secret.generate === 'hex32' ? 32 : 24).toString('hex')}`)
+    // Only the generated ones get a value here; an endpoint or a bucket name is yours to fill in.
+    if (secret.generate) {
+      console.log(`  # ${secret.name}=${randomBytes(secret.generate === 'hex32' ? 32 : 24).toString('hex')}`)
+    } else {
+      console.log(`  # ${secret.name}=   (${secret.optional ? 'optional — ' : ''}${secret.why})`)
+    }
   }
   console.log('  npm install')
   console.log(config.target === 'workers' ? '  npm run build && npm run preview' : '  npm run dev')

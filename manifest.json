@@ -1,5 +1,5 @@
 {
-  "manifestVersion": 1,
+  "manifestVersion": 2,
   "groups": [
     {
       "id": "runtime",
@@ -71,6 +71,11 @@
           "id": "cloudflare-r2",
           "title": "Cloudflare R2",
           "hint": "Object storage, no disk."
+        },
+        {
+          "id": "s3-media",
+          "title": "S3-compatible storage",
+          "hint": "R2, MinIO, S3, Backblaze. Credentials, not a binding."
         }
       ]
     },
@@ -159,7 +164,7 @@
           "cloudflare-r2"
         ]
       },
-      "because": "A Worker has no disk. R2 is the only media adapter that does not need one."
+      "because": "A Worker has no disk. R2 is the media adapter that needs none, and inside a Worker its binding beats the S3 API: no credentials to hold."
     },
     {
       "id": "workers-images",
@@ -194,10 +199,11 @@
       },
       "allow": {
         "media": [
-          "filesystem-media"
+          "filesystem-media",
+          "s3-media"
         ]
       },
-      "because": "R2 arrives as a Worker binding. There is no S3-compatible media adapter yet."
+      "because": "R2 arrives as a Worker binding, so a Node process reaches it over the S3 API instead \u2014 which also reaches MinIO, Backblaze and S3."
     },
     {
       "id": "node-images",
@@ -241,32 +247,70 @@
       "content": "magazine"
     }
   },
-  "secrets": {
-    "workers": [
-      {
-        "name": "TROKKY_JWT_SECRET",
-        "generate": "hex32",
-        "why": "Signs sessions and tokens. Must stay the same across deploys."
+  "secrets": [
+    {
+      "when": {
+        "target": "workers"
       },
-      {
-        "name": "TROKKY_CLAIM_SECRET",
-        "generate": "hex24",
-        "why": "Lets the first visitor claim the instance as administrator."
-      }
-    ],
-    "node": [
-      {
-        "name": "TROKKY_JWT_SECRET",
-        "generate": "hex32",
-        "why": "Signs sessions and tokens. Must stay the same across restarts."
+      "secrets": [
+        {
+          "name": "TROKKY_JWT_SECRET",
+          "generate": "hex32",
+          "why": "Signs sessions and tokens. Must stay the same across deploys."
+        },
+        {
+          "name": "TROKKY_CLAIM_SECRET",
+          "generate": "hex24",
+          "why": "Lets the first visitor claim the instance as administrator."
+        }
+      ]
+    },
+    {
+      "when": {
+        "target": "node"
       },
-      {
-        "name": "TROKKY_CLAIM_SECRET",
-        "generate": "hex24",
-        "why": "Lets the first visitor claim the instance as administrator."
-      }
-    ]
-  },
+      "secrets": [
+        {
+          "name": "TROKKY_JWT_SECRET",
+          "generate": "hex32",
+          "why": "Signs sessions and tokens. Must stay the same across restarts."
+        },
+        {
+          "name": "TROKKY_CLAIM_SECRET",
+          "generate": "hex24",
+          "why": "Lets the first visitor claim the instance as administrator."
+        }
+      ]
+    },
+    {
+      "when": {
+        "media": "s3-media"
+      },
+      "secrets": [
+        {
+          "name": "S3_ENDPOINT",
+          "why": "The bucket service endpoint, e.g. https://<account>.r2.cloudflarestorage.com"
+        },
+        {
+          "name": "S3_BUCKET",
+          "why": "The bucket name. Create it before the first upload."
+        },
+        {
+          "name": "S3_ACCESS_KEY_ID",
+          "why": "An access key with read and write on that bucket."
+        },
+        {
+          "name": "S3_SECRET_ACCESS_KEY",
+          "why": "Its secret. Never commit this."
+        },
+        {
+          "name": "S3_REGION",
+          "why": "Optional. SigV4 signs over a region whether or not the backend has one; defaults to 'auto', which is what R2 wants.",
+          "optional": true
+        }
+      ]
+    }
+  ],
   "templates": [
     {
       "id": "magazine",

@@ -30,6 +30,9 @@ const CASES = [
   { id: 'node-studio',    flags: ['--target=node', '--parts=studio', '--content=magazine'] },
   { id: 'node-api',       flags: ['--target=node', '--parts=api', '--content=blank'] },
   { id: 'node-postgres',  flags: ['--target=node', '--parts=studio', '--content=magazine', '--data=postgres-data'], skipBoot: 'needs a database' },
+  // full-site, not studio: the thumbnail check below only runs for full-site, and a media
+  // adapter that stores nothing is exactly what this case exists to catch.
+  { id: 'node-s3',        flags: ['--target=node', '--parts=full-site', '--content=magazine', '--media=s3-media'], env: 's3' },
 ]
 
 const flags = Object.fromEntries(process.argv.slice(2).map(a => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? 'true']))
@@ -61,12 +64,55 @@ async function smoke(testCase) {
 
   run('node', [join(process.cwd(), 'dist/cli.js'), testCase.id, '--yes', `--out=${dir}`, ...testCase.flags])
   const workers = testCase.flags.includes('--target=workers')
-  writeFileSync(
-    join(dir, workers ? '.dev.vars' : '.env'),
-    `TROKKY_JWT_SECRET=${randomBytes(32).toString('hex')}\nTROKKY_CLAIM_SECRET=${claimSecret}\nTROKKY_DATA_DIR=./data\nPORT=8877\n`,
-  )
+  const env = [
+    `TROKKY_JWT_SECRET=${randomBytes(32).toString('hex')}`,
+    `TROKKY_CLAIM_SECRET=${claimSecret}`,
+    'TROKKY_DATA_DIR=./data',
+    'PORT=8877',
+  ]
+
+  if (testCase.env === 's3') {
+    // A composition can need more than the two generated secrets. These point at whatever is
+    // answering on S3_ENDPOINT -- MinIO in CI, anything S3-shaped locally.
+    env.push(
+      `S3_ENDPOINT=${process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000'}`,
+      `S3_BUCKET=${process.env.S3_BUCKET ?? 'trokky-smoke'}`,
+      `S3_ACCESS_KEY_ID=${process.env.S3_ACCESS_KEY_ID ?? 'minioadmin'}`,
+      `S3_SECRET_ACCESS_KEY=${process.env.S3_SECRET_ACCESS_KEY ?? 'minioadmin'}`,
+      'S3_REGION=auto',
+    )
+  }
+
+  writeFileSync(join(dir, workers ? '.dev.vars' : '.env'), `${env.join('\n')}\n`)
 
   run('npm', ['install', '--no-audit', '--no-fund'], dir)
+
+  if (testCase.env === 's3') {
+    // The bucket has to exist before the first upload and object stores do not create one on
+    // demand. Signing runs from THIS repo, not the generated project: creating a bucket is
+    // harness work, and reaching into the project's node_modules coupled the harness to
+    // whatever @trokky/trokky happens to depend on -- which failed outright while the adapter
+    // was still unpublished. aws4fetch is a devDependency here for exactly that reason.
+    // `--input-type=module` because top-level await in `node -e` otherwise relies on syntax
+    // detection that is only default-on from Node 22.7, and engines allows 20.
+    run('node', ['--input-type=module', '-e', `
+      const { AwsClient } = await import('aws4fetch')
+      const aws = new AwsClient({
+        accessKeyId: process.env.S3_ACCESS_KEY_ID ?? 'minioadmin',
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? 'minioadmin',
+        region: 'auto', service: 's3',
+      })
+      const endpoint = process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000'
+      const bucket = process.env.S3_BUCKET ?? 'trokky-smoke'
+      const response = await aws.fetch(endpoint + '/' + bucket, { method: 'PUT' })
+      // 409 is BucketAlreadyOwnedByYou, which is the state we wanted anyway.
+      if (!response.ok && response.status !== 409) {
+        throw new Error('could not create ' + bucket + ': ' + response.status + ' ' + await response.text())
+      }
+    `.trim()])
+    notes.push('bucket')
+  }
+
   run('npm', ['run', 'build'], dir)
   notes.push('built')
 
@@ -74,12 +120,24 @@ async function smoke(testCase) {
 
   const port = workers ? 8876 : 8877
   const base = `http://127.0.0.1:${port}`
+  // Piped, not ignored: a server that dies on its first import used to surface as
+  // "never became healthy" after a 90 second stall, which reads as flake. The real reason --
+  // ERR_PACKAGE_PATH_NOT_EXPORTED, a missing env var, a port clash -- was thrown away. Keep the
+  // tail so the failure says what happened.
   const child = workers
-    ? spawn('npx', ['wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1'], { cwd: dir, stdio: 'ignore' })
-    : spawn('npx', ['tsx', 'src/server.ts'], { cwd: dir, stdio: 'ignore', env: { ...process.env, PORT: String(port) } })
+    ? spawn('npx', ['wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1'], { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] })
+    : spawn('npx', ['tsx', 'src/server.ts'], { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PORT: String(port) } })
+
+  let tail = ''
+  const keepTail = chunk => { tail = (tail + chunk).slice(-4000) }
+  child.stdout?.on('data', keepTail)
+  child.stderr?.on('data', keepTail)
 
   try {
-    if (!(await waitFor(`${base}/api/health`))) throw new Error('never became healthy')
+    if (!(await waitFor(`${base}/api/health`))) {
+      const why = tail.trim().split('\n').filter(Boolean).slice(-6).join('\n  ')
+      throw new Error(`never became healthy${why ? `\n  ${why}` : ''}`)
+    }
     notes.push('healthy')
 
     const claim = await (await fetch(`${base}/api/auth/claim`)).json()
@@ -153,7 +211,7 @@ for (const testCase of CASES) {
     console.log(`ok — ${await smoke(testCase)}`)
   } catch (error) {
     failed++
-    console.log(`FAILED — ${error instanceof Error ? error.message.split('\n')[0] : error}`)
+    console.log(`FAILED — ${error instanceof Error ? [error.message.split('\n')[0], error.stderr?.toString().trim()].filter(Boolean).join(' — ') : error}`)
   }
 }
 

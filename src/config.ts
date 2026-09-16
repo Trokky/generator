@@ -9,7 +9,7 @@ export interface ProjectConfig {
   name: string
   target: 'workers' | 'node'
   data: 'filesystem-data' | 'postgres-data' | 'cloudflare-d1'
-  media: 'filesystem-media' | 'cloudflare-r2'
+  media: 'filesystem-media' | 'cloudflare-r2' | 's3-media'
   images: 'sharp' | 'cloudflare-images' | 'none'
   parts: 'api' | 'studio' | 'full-site'
   /** Open on purpose: a content model is a pair of directories, not a value this file knows. */

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { manifest } from '../src/manifest.js'
+import { secretsFor, manifest } from '../src/manifest.js'
 import { validate, optionsFor, reconcile, templateFor, describe as describeProblems } from '../src/validate.js'
 import { generate } from '../src/generate.js'
 import { fsFileSource } from '../src/files-node.js'
@@ -142,8 +142,8 @@ describe('the valid space', () => {
 
     // parts x content is 5, not 6: only full-site + blank is impossible.
     // Workers: 1 data x 1 media x 2 images x 5 = 10
-    // Node:    2 data x 1 media x 2 images x 5 = 20
-    expect(valid).toBe(30)
+    // Node:    2 data x 2 media x 2 images x 5 = 40   (s3-media joined filesystem-media)
+    expect(valid).toBe(50)
   })
 })
 
@@ -186,7 +186,7 @@ describe('mid-change, when the config is briefly inconsistent', () => {
   it('still reports what each axis allows, instead of going blank', () => {
     // Judging the whole config would answer "nothing, anywhere" and read as a dead page.
     expect(optionsFor('data', midSwitch)).toEqual(['filesystem-data', 'postgres-data'])
-    expect(optionsFor('media', midSwitch)).toEqual(['filesystem-media'])
+    expect(optionsFor('media', midSwitch)).toEqual(['filesystem-media', 's3-media'])
     expect(optionsFor('images', midSwitch)).toEqual(['sharp', 'none'])
     expect(optionsFor('parts', midSwitch)).toEqual(['api', 'studio', 'full-site'])
   })
@@ -209,5 +209,32 @@ describe('mid-change, when the config is briefly inconsistent', () => {
   it('leaves an already-valid composition alone', () => {
     const valid = withDefaults({ name: 'x', target: 'node' })
     expect(reconcile(valid)).toMatchObject(valid)
+  })
+})
+
+describe('secrets follow the composition, not only the target', () => {
+  it('asks for S3 credentials only when the media adapter needs them', () => {
+    const names = (config: Record<string, string>): string[] =>
+      secretsFor(config as never).map(secret => secret.name)
+
+    const s3 = names({ target: 'node', media: 's3-media' })
+    expect(s3).toContain('TROKKY_JWT_SECRET')
+    expect(s3).toContain('S3_ENDPOINT')
+    expect(s3).toContain('S3_SECRET_ACCESS_KEY')
+
+    // The same target, a different media adapter: no credentials to ask for.
+    expect(names({ target: 'node', media: 'filesystem-media' })).not.toContain('S3_ENDPOINT')
+    expect(names({ target: 'workers', media: 'cloudflare-r2' })).not.toContain('S3_ENDPOINT')
+  })
+
+  it('never lists a secret twice, however many groups match', () => {
+    const names = secretsFor({ target: 'node', media: 's3-media' } as never).map(s => s.name)
+    expect(names).toHaveLength(new Set(names).size)
+  })
+
+  it('leaves a value-only secret ungenerated, so nobody invents a bucket name', () => {
+    const secrets = secretsFor({ target: 'node', media: 's3-media' } as never)
+    expect(secrets.find(s => s.name === 'TROKKY_JWT_SECRET')?.generate).toBe('hex32')
+    expect(secrets.find(s => s.name === 'S3_BUCKET')?.generate).toBeUndefined()
   })
 })
