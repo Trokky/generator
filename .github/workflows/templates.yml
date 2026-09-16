@@ -96,15 +96,21 @@ jobs:
           # also keeps it honest with the package.json emitted alongside it.
           ( cd "$RUNNER_TEMP/out" && npm install --package-lock-only --no-audit --no-fund )
 
-      - name: Check that the sync token exists
+      # A deploy key, not a PAT. It is scoped to exactly one repository, where a personal access
+      # token carries whatever its owner granted it; and it belongs to the repo rather than to a
+      # person, so it does not leave with them. The cost is one key per template repo: GitHub
+      # refuses to register the same public key on two.
+      - name: Check that the sync key exists
+        env:
+          KEY: ${{ secrets.TEMPLATE_SYNC_KEY }}
         run: |
-          if [ -z "${{ secrets.TEMPLATE_SYNC_TOKEN }}" ]; then
-            echo "::error::TEMPLATE_SYNC_TOKEN is not set on this repository."
+          if [ -z "$KEY" ]; then
+            echo "::error::TEMPLATE_SYNC_KEY is not set on this repository."
             echo "These repos live outside Trokky/generator, so the default GITHUB_TOKEN cannot"
-            echo "write to them. Add a fine-grained PAT scoped to ${{ steps.gen.outputs.slug }}"
-            echo "with Contents: read and write (plus Workflows: read and write if a template"
-            echo "repo ever tracks .github/workflows). Without it checkout fails with a bare 401,"
-            echo "which reads like the repo is missing."
+            echo "write to them. Generate an ed25519 key, add the PUBLIC half to"
+            echo "${{ steps.gen.outputs.slug }} as a deploy key with write access, and put the"
+            echo "PRIVATE half here as TEMPLATE_SYNC_KEY. Without it the checkout fails with a"
+            echo "bare authentication error that reads like the repo is missing."
             exit 1
           fi
 
@@ -113,7 +119,7 @@ jobs:
         with:
           repository: ${{ steps.gen.outputs.slug }}
           path: existing
-          token: ${{ secrets.TEMPLATE_SYNC_TOKEN }}
+          ssh-key: ${{ secrets.TEMPLATE_SYNC_KEY }}
 
       - name: Replace its contents with the generated tree
         run: |
