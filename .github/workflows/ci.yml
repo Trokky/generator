@@ -35,7 +35,7 @@ jobs:
 
       # Only the S3 case needs one, and a service container cannot override an image's command —
       # which MinIO needs — so it is started as a step instead. The bucket is created by the
-      # smoke script itself, with the generated project's own signing library.
+      # smoke script itself, signing from this repo's own aws4fetch devDependency.
       #
       # quay.io, not Docker Hub: MinIO's images are no longer published there (`minio/minio`
       # 404s, and so does `minio/mc`). A local `docker run minio/minio` can still succeed from

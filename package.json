@@ -47,9 +47,10 @@
     "inline": "node scripts/inline-files.mjs"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
+    "aws4fetch": "^1.0.20",
     "typescript": "^5.6.0",
-    "vitest": "^3.2.4",
-    "@types/node": "^22.0.0"
+    "vitest": "^3.2.4"
   },
   "keywords": [
     "trokky",

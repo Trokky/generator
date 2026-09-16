@@ -89,11 +89,12 @@ async function smoke(testCase) {
 
   if (testCase.env === 's3') {
     // The bucket has to exist before the first upload and object stores do not create one on
-    // demand. Signing uses the generated project's own aws4fetch -- a dependency of
-    // @trokky/trokky since the s3-media adapter shipped -- so this needs no S3 client of its
-    // own and no second container in CI. `--input-type=module` because top-level await in
-    // `node -e` otherwise relies on syntax detection that is only default-on from Node 22.7,
-    // and engines allows 20.
+    // demand. Signing runs from THIS repo, not the generated project: creating a bucket is
+    // harness work, and reaching into the project's node_modules coupled the harness to
+    // whatever @trokky/trokky happens to depend on -- which failed outright while the adapter
+    // was still unpublished. aws4fetch is a devDependency here for exactly that reason.
+    // `--input-type=module` because top-level await in `node -e` otherwise relies on syntax
+    // detection that is only default-on from Node 22.7, and engines allows 20.
     run('node', ['--input-type=module', '-e', `
       const { AwsClient } = await import('aws4fetch')
       const aws = new AwsClient({
@@ -108,7 +109,7 @@ async function smoke(testCase) {
       if (!response.ok && response.status !== 409) {
         throw new Error('could not create ' + bucket + ': ' + response.status + ' ' + await response.text())
       }
-    `.trim()], dir)
+    `.trim()])
     notes.push('bucket')
   }
 
@@ -119,12 +120,24 @@ async function smoke(testCase) {
 
   const port = workers ? 8876 : 8877
   const base = `http://127.0.0.1:${port}`
+  // Piped, not ignored: a server that dies on its first import used to surface as
+  // "never became healthy" after a 90 second stall, which reads as flake. The real reason --
+  // ERR_PACKAGE_PATH_NOT_EXPORTED, a missing env var, a port clash -- was thrown away. Keep the
+  // tail so the failure says what happened.
   const child = workers
-    ? spawn('npx', ['wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1'], { cwd: dir, stdio: 'ignore' })
-    : spawn('npx', ['tsx', 'src/server.ts'], { cwd: dir, stdio: 'ignore', env: { ...process.env, PORT: String(port) } })
+    ? spawn('npx', ['wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1'], { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] })
+    : spawn('npx', ['tsx', 'src/server.ts'], { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PORT: String(port) } })
+
+  let tail = ''
+  const keepTail = chunk => { tail = (tail + chunk).slice(-4000) }
+  child.stdout?.on('data', keepTail)
+  child.stderr?.on('data', keepTail)
 
   try {
-    if (!(await waitFor(`${base}/api/health`))) throw new Error('never became healthy')
+    if (!(await waitFor(`${base}/api/health`))) {
+      const why = tail.trim().split('\n').filter(Boolean).slice(-6).join('\n  ')
+      throw new Error(`never became healthy${why ? `\n  ${why}` : ''}`)
+    }
     notes.push('healthy')
 
     const claim = await (await fetch(`${base}/api/auth/claim`)).json()
