@@ -5,7 +5,7 @@
 
 import type { ProjectConfig } from './config.js'
 import { hasFrontend, hasStudio } from './config.js'
-import { manifest } from './manifest.js'
+import { manifest, secretsFor } from './manifest.js'
 
 const TROKKY = '@trokky/trokky'
 const STUDIO = '@trokky/studio'
@@ -392,6 +392,27 @@ export function trokkyConfig(config: ProjectConfig): string {
         auditLogsDir: path.join(dataDir, 'audit-logs'),
       },`
 
+  const mediaConfig =
+    config.media === 's3-media'
+      ? `{
+      adapter: 's3-media' as const,
+      options: {
+        endpoint: process.env.S3_ENDPOINT,
+        bucket: process.env.S3_BUCKET,
+        accessKeyId: process.env.S3_ACCESS_KEY_ID,
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+        // SigV4 signs over a region whether or not the backend has one. R2 wants 'auto'.
+        region: process.env.S3_REGION ?? 'auto',
+      },
+    }`
+      : `{
+      adapter: 'filesystem-media' as const,
+      options: {
+        mediaDir: path.join(dataDir, 'media'),
+        createDirs: true,
+      },
+    }`
+
   return `/**
  * Trokky configuration.
  */
@@ -410,13 +431,7 @@ ${config.content === 'blank' ? '' : '  structure,\n'}
       adapter: '${config.data}' as const,
 ${dataOptions}
     },
-    media: {
-      adapter: 'filesystem-media' as const,
-      options: {
-        mediaDir: path.join(dataDir, 'media'),
-        createDirs: true,
-      },
-    },
+    media: ${mediaConfig},
   },
 
   media: {
@@ -444,7 +459,7 @@ ${config.images === 'none' ? '' : `    // Without this list nothing is generated
 }
 
 export function envExample(config: ProjectConfig): string {
-  const secrets = manifest.secrets[config.target] ?? []
+  const secrets = secretsFor(config)
   const lines = [
     '# Generate these; do not invent them:',
     '#   node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',

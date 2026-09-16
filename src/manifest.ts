@@ -50,8 +50,21 @@ export interface Constraint {
 
 export interface Secret {
   name: string
-  generate: 'hex32' | 'hex24'
+  /** Absent means the value is yours to supply — an endpoint, a bucket name, a key. */
+  generate?: 'hex32' | 'hex24'
   why: string
+}
+
+/**
+ * "A composition that looks like `when` also needs these."
+ *
+ * Keyed by shape rather than by target because that is the truth: the JWT secret depends on the
+ * target, S3 credentials depend on the media choice, and the next one will depend on something
+ * else again. A `Record<target, Secret[]>` could only express the first of those.
+ */
+export interface SecretGroup {
+  when: Partial<Record<AxisId, string>>
+  secrets: Secret[]
 }
 
 /**
@@ -76,7 +89,7 @@ export interface Manifest {
   axes: Axis[]
   constraints: Constraint[]
   defaults: Record<string, Partial<Record<AxisId, string>>>
-  secrets: Record<string, Secret[]>
+  secrets: SecretGroup[]
   templates: Template[]
 }
 
@@ -86,4 +99,13 @@ export const axis = (id: AxisId): Axis => {
   const found = manifest.axes.find(a => a.id === id)
   if (!found) throw new Error(`Unknown axis: ${id}`)
   return found
+}
+
+/** Every secret a composition needs, in manifest order, with no duplicates. */
+export const secretsFor = (config: Partial<Record<AxisId, string>>): Secret[] => {
+  const seen = new Set<string>()
+  return manifest.secrets
+    .filter(group => Object.entries(group.when).every(([axis, value]) => config[axis as AxisId] === value))
+    .flatMap(group => group.secrets)
+    .filter(secret => (seen.has(secret.name) ? false : seen.add(secret.name)))
 }

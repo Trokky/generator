@@ -30,6 +30,9 @@ const CASES = [
   { id: 'node-studio',    flags: ['--target=node', '--parts=studio', '--content=magazine'] },
   { id: 'node-api',       flags: ['--target=node', '--parts=api', '--content=blank'] },
   { id: 'node-postgres',  flags: ['--target=node', '--parts=studio', '--content=magazine', '--data=postgres-data'], skipBoot: 'needs a database' },
+  // full-site, not studio: the thumbnail check below only runs for full-site, and a media
+  // adapter that stores nothing is exactly what this case exists to catch.
+  { id: 'node-s3',        flags: ['--target=node', '--parts=full-site', '--content=magazine', '--media=s3-media'], env: 's3' },
 ]
 
 const flags = Object.fromEntries(process.argv.slice(2).map(a => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? 'true']))
@@ -61,12 +64,51 @@ async function smoke(testCase) {
 
   run('node', [join(process.cwd(), 'dist/cli.js'), testCase.id, '--yes', `--out=${dir}`, ...testCase.flags])
   const workers = testCase.flags.includes('--target=workers')
-  writeFileSync(
-    join(dir, workers ? '.dev.vars' : '.env'),
-    `TROKKY_JWT_SECRET=${randomBytes(32).toString('hex')}\nTROKKY_CLAIM_SECRET=${claimSecret}\nTROKKY_DATA_DIR=./data\nPORT=8877\n`,
-  )
+  const env = [
+    `TROKKY_JWT_SECRET=${randomBytes(32).toString('hex')}`,
+    `TROKKY_CLAIM_SECRET=${claimSecret}`,
+    'TROKKY_DATA_DIR=./data',
+    'PORT=8877',
+  ]
+
+  if (testCase.env === 's3') {
+    // A composition can need more than the two generated secrets. These point at whatever is
+    // answering on S3_ENDPOINT -- MinIO in CI, anything S3-shaped locally.
+    env.push(
+      `S3_ENDPOINT=${process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000'}`,
+      `S3_BUCKET=${process.env.S3_BUCKET ?? 'trokky-smoke'}`,
+      `S3_ACCESS_KEY_ID=${process.env.S3_ACCESS_KEY_ID ?? 'minioadmin'}`,
+      `S3_SECRET_ACCESS_KEY=${process.env.S3_SECRET_ACCESS_KEY ?? 'minioadmin'}`,
+      'S3_REGION=auto',
+    )
+  }
+
+  writeFileSync(join(dir, workers ? '.dev.vars' : '.env'), `${env.join('\n')}\n`)
 
   run('npm', ['install', '--no-audit', '--no-fund'], dir)
+
+  if (testCase.env === 's3') {
+    // The bucket has to exist before the first upload and object stores do not create one on
+    // demand. Signing happens with the project's own aws4fetch, installed a line ago, so this
+    // needs no S3 client of its own and no second container in CI.
+    run('node', ['-e', `
+      const { AwsClient } = await import('aws4fetch')
+      const aws = new AwsClient({
+        accessKeyId: process.env.S3_ACCESS_KEY_ID ?? 'minioadmin',
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? 'minioadmin',
+        region: 'auto', service: 's3',
+      })
+      const endpoint = process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000'
+      const bucket = process.env.S3_BUCKET ?? 'trokky-smoke'
+      const response = await aws.fetch(endpoint + '/' + bucket, { method: 'PUT' })
+      // 409 is BucketAlreadyOwnedByYou, which is the state we wanted anyway.
+      if (!response.ok && response.status !== 409) {
+        throw new Error('could not create ' + bucket + ': ' + response.status + ' ' + await response.text())
+      }
+    `.trim()], dir)
+    notes.push('bucket')
+  }
+
   run('npm', ['run', 'build'], dir)
   notes.push('built')
 

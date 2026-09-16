@@ -48,7 +48,7 @@ describe('the published tarball', () => {
 })
 
 describe('every set the generator can ask for exists', () => {
-  it('is true for all 30 valid compositions, not just the ones smoke-tested', () => {
+  it('is true for all 50 valid compositions, not just the ones smoke-tested', () => {
     // An empty directory survives neither git nor npm. This is the test that would have caught
     // `files/node/` — created locally, never committed, fine until someone else cloned it.
     const ids = (axis: string) => manifest.axes.find(a => a.id === axis)!.options.map(o => o.id)
@@ -64,7 +64,7 @@ describe('every set the generator can ask for exists', () => {
                 expect(() => generate(config, source), JSON.stringify({ target, parts, content })).not.toThrow()
                 built++
               }
-    expect(built).toBe(30)
+    expect(built).toBe(50)
   })
 })
 
