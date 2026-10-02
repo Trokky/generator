@@ -70,17 +70,26 @@ export interface SecretGroup {
 }
 
 /**
- * A composition that also exists as a published repository.
+ * A composition that also exists as a published project inside the Trokky/templates repository.
  *
  * This is what makes one-click deployment possible at all: Cloudflare's Deploy button takes a
  * public repo URL, and a bundle composed in a browser does not have one. Where a composition
  * matches a template exactly, the button can serve it; everywhere else it cannot, and saying so
  * is better than pretending.
+ *
+ * The repo is shared — one directory per template, `trokky-<id>` for the project name. That is
+ * also what keeps adding a template free of new credentials: the deploy button accepts a
+ * `/tree/<branch>/<path>` URL and treats that subdirectory as the root of what it deploys (the
+ * isolation it asks for — all dependencies inside the directory — is how a generated project
+ * is built), and one repo means one deploy key, where GitHub would otherwise refuse the same
+ * key across two repositories.
  */
 export interface Template {
   id: string
   title: string
   repo: string
+  /** The directory inside `repo` this template's project occupies, no slashes. */
+  path: string
   deployButton: string
   composition: Partial<Record<AxisId, string>>
 }

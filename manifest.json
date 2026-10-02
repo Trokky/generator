@@ -315,8 +315,9 @@
     {
       "id": "magazine",
       "title": "The magazine template",
-      "repo": "https://github.com/Trokky/trokky-template",
-      "deployButton": "https://deploy.workers.cloudflare.com/?url=https://github.com/Trokky/trokky-template",
+      "repo": "https://github.com/Trokky/templates",
+      "path": "magazine",
+      "deployButton": "https://deploy.workers.cloudflare.com/?url=https://github.com/Trokky/templates/tree/main/magazine",
       "composition": {
         "target": "workers",
         "data": "cloudflare-d1",

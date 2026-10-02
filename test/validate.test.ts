@@ -152,7 +152,35 @@ describe('templates: the only compositions a Deploy button can serve', () => {
     const template = templateFor(withDefaults({ name: 'x', target: 'workers' }))
     expect(template?.id).toBe('magazine')
     expect(template?.deployButton).toContain('deploy.workers.cloudflare.com')
-    expect(template?.deployButton).toContain('trokky-template')
+    expect(template?.deployButton).toContain('/tree/main/magazine')
+  })
+
+  // The structure that earns this test: every template is one directory of the one templates
+  // repo, so the button deploys that directory as its root and the sync workflow needs one
+  // deploy key — not one per template, which GitHub would not register twice anyway.
+  it('serves every template from its own directory of the shared repo', () => {
+    // Two templates pointing at one directory would overwrite each other's files silently —
+    // the sync writes whole directories, so the last one wins.
+    const paths = manifest.templates.map(t => t.path)
+    expect(paths).toHaveLength(new Set(paths).size)
+    for (const template of manifest.templates) {
+      expect(template.path, `${template.id}: "path" is where its project lives`).toMatch(/^[a-z][a-z0-9-]*$/)
+      const repoUrl = new URL(template.repo)
+      expect(repoUrl.hostname, template.id).toBe('github.com')
+      // `/tree/` in `repo` would send the sync checkout at a subdirectory and nest the copies;
+      // the /tree form belongs to `deployButton`, whose URL must be built from these two fields.
+      // The trailing-slash and .git cases are pinned because the button URL is used as-is: a
+      // `templates//tree/main/magazine` or `templates.git/tree/main/magazine` is a page no
+      // browser resolves, and the review that built this test proved both survive the regex
+      // that once permitted them.
+      expect(repoUrl.pathname, `${template.id}: "repo" is a repository root`).toMatch(/^\/Trokky\/[A-Za-z0-9_.-]+$/)
+      expect(repoUrl.pathname, template.id).not.toMatch(/\.git$/)
+      // The branch is main because that is what the sync workflow pushes, and the sync refuses
+      // a repo whose default branch is anything else.
+      expect(template.deployButton, template.id).toBe(
+        `https://deploy.workers.cloudflare.com/?url=${template.repo}/tree/main/${template.path}`,
+      )
+    }
   })
 
   it('refuses a near-match, because the button would deploy something else', () => {

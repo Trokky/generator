@@ -1,20 +1,30 @@
 name: Template repos
 
-# The repos named in `manifest.templates` are BUILD OUTPUT, not sources.
+# The repo the manifest's `templates` entries point at is BUILD OUTPUT, not a source.
 #
-# They exist only because Cloudflare's deploy button needs a public repo URL, and a bundle
-# composed in a browser has none. Keeping them by hand meant two copies of one artifact drifting
-# apart with nothing to notice: by 2026-09-16, 16 of trokky-template's 35 files disagreed with
-# what the generator produced for the very composition `manifest.templates` says it is — which is
-# the claim trokky.build shows the deploy button on.
+# It exists only because Cloudflare's deploy button needs a public repo URL, and a bundle
+# composed in a browser has none. Keeping it by hand meant two copies of one artifact drifting
+# apart with nothing to notice: by 2026-09-16, 16 of the magazine template's 35 files disagreed
+# with what the generator produced for the very composition `manifest.templates` says it is —
+# which is the claim trokky.build shows the deploy button on.
 #
-# So: regenerate from the manifest and push. Nobody edits these repos; an edit there is lost on
-# the next run, and that is the point. Adding a template means adding a `templates` entry, not a
-# repository to maintain.
+# One repo holds every template, one directory each. The button accepts a
+# `.../tree/<branch>/<path>` URL and treats that subdirectory as the root of what it deploys;
+# the isolation it asks for (all dependencies inside the directory) is exactly how a generated
+# project builds — its own package.json, and the lockfile committed below, because Cloudflare's
+# deploy of the template runs `npm ci`. And one repo means one deploy key where GitHub would
+# refuse to register the same key on two repositories: adding a template has cost nothing extra
+# since.
+#
+# So: regenerate from the manifest and push. Nobody edits the templates repo; an edit there is
+# lost on the next run, and that is the point. Adding a template means adding a `templates`
+# entry, not a repository to maintain or a key to mint. A template's project name inside its
+# directory is `trokky-<id>` — a shared repo no longer lends it a basename, and two templates
+# deployed into one Cloudflare account need distinct Worker and D1 names.
 
 on:
-  # Gated on CI, NOT on the push. These repos are what trokky.build's public deploy button
-  # points at, so publishing them from a main whose tests never ran would put a broken template
+  # Gated on CI, NOT on the push. This repo is what trokky.build's public deploy button
+  # points at, so publishing from a main whose tests never ran would put a broken template
   # in front of strangers within a minute of a bad merge.
   workflow_run:
     workflows: [CI]
@@ -35,28 +45,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  discover:
-    name: Read the manifest
+  sync:
+    name: Sync the templates repo
     # `workflow_run` fires on failure too; only a green CI may publish.
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    outputs:
-      templates: ${{ steps.read.outputs.templates }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: read
-        run: |
-          set -euo pipefail
-          echo "templates=$(node -p "JSON.stringify(require('./manifest.json').templates.map(t => t.id))")" >> "$GITHUB_OUTPUT"
-
-  sync:
-    name: ${{ matrix.template }}
-    needs: discover
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        template: ${{ fromJSON(needs.discover.outputs.templates) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,98 +57,124 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      - name: Generate the template
-        id: gen
-        env:
-          TEMPLATE: ${{ matrix.template }}
+      - name: Read the manifest
+        id: read
         run: |
           set -euo pipefail
-          entry="$(node -p "JSON.stringify(require('./manifest.json').templates.find(t => t.id === process.argv[1]))" "$TEMPLATE")"
+          # One repo for all of them is the shape this workflow implements: a second repo is
+          # either a mistake here or a deploy key the next run has no key for — say so, fail.
+          repos="$(node -p "new Set(require('./manifest.json').templates.map(t => t.repo)).size")"
+          if [ "$repos" != "1" ]; then
+            echo "::error::manifest.json must point every template at exactly one shared repository — one repo means one deploy key ($repos found)."
+            exit 1
+          fi
+          node -e '
+            const m = require("./manifest.json")
+            for (const t of m.templates)
+              console.log([t.id, t.path, JSON.stringify(t.composition)].join("\t"))
+          ' > "$RUNNER_TEMP/templates.tsv"
+          repo="$(node -p "new URL(require('./manifest.json').templates[0].repo).pathname.replace(/^\/+|\\/$/g, '')")"
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
 
-          # owner/name from the manifest's own URL. Taking only the basename and assuming the
-          # org meant an entry pointing elsewhere would resolve to a same-named Trokky repo and
-          # be force-updated over -- silently, since nothing compared the remote to the manifest.
-          slug="$(node -p "new URL(JSON.parse(process.argv[1]).repo).pathname.replace(/^\/+|\.git$/g, '')" "$entry")"
-          name="${slug##*/}"
-          # An array, not an unquoted string: word splitting is a bash behaviour that zsh does
-          # not share, so a string could only ever be exercised on the runner.
-          IFS=$'\n' read -r -d '' -a flags < <(
-            node -p "Object.entries(JSON.parse(process.argv[1]).composition).map(([k,v]) => '--' + k + '=' + v).join('\n')" "$entry" && printf '\0'
-          )
-
-          echo "slug=$slug" >> "$GITHUB_OUTPUT"
-          echo "name=$name" >> "$GITHUB_OUTPUT"
-
-          # The project name is the repo name, so wrangler's worker and D1 names match the repo
-          # a deployer just clicked from.
-          node dist/cli.js "$name" --yes --out="$RUNNER_TEMP/out" "${flags[@]}"
-
-          # The generator emits no lockfile -- a scaffolded project should resolve fresh. A
-          # template repo is different: Cloudflare builds it, and a build that runs `npm ci`
-          # fails outright without one. So the lockfile is generated here and committed, which
-          # also keeps it honest with the package.json emitted alongside it.
-          ( cd "$RUNNER_TEMP/out" && npm install --package-lock-only --no-audit --no-fund )
-
-      # A deploy key, not a PAT. It is scoped to exactly one repository, where a personal access
-      # token carries whatever its owner granted it; and it belongs to the repo rather than to a
-      # person, so it does not leave with them. The cost is one key per template repo: GitHub
-      # refuses to register the same public key on two.
       - name: Check that the sync key exists
         env:
           KEY: ${{ secrets.TEMPLATE_SYNC_KEY }}
         run: |
           if [ -z "$KEY" ]; then
             echo "::error::TEMPLATE_SYNC_KEY is not set on this repository."
-            echo "These repos live outside Trokky/generator, so the default GITHUB_TOKEN cannot"
-            echo "write to them. Generate an ed25519 key, add the PUBLIC half to"
-            echo "${{ steps.gen.outputs.slug }} as a deploy key with write access, and put the"
-            echo "PRIVATE half here as TEMPLATE_SYNC_KEY. Without it the checkout fails with a"
-            echo "bare authentication error that reads like the repo is missing."
+            echo "The templates repo is a separate repository the manifest names, so the default"
+            echo "GITHUB_TOKEN cannot write to it. Generate an ed25519 key, add the PUBLIC half to"
+            echo "it as a deploy key with write access, and put the PRIVATE half here as"
+            echo "TEMPLATE_SYNC_KEY. Without it the checkout fails with a bare authentication"
+            echo "error that reads like the repo is missing."
             exit 1
           fi
 
-      - name: Check out the template repo
+      - name: Check out the templates repo
         uses: actions/checkout@v4
         with:
-          repository: ${{ steps.gen.outputs.slug }}
+          # The URL straight from the manifest — not taken only by basename with the org
+          # assumed: an entry pointing elsewhere would then resolve to a same-named Trokky repo
+          # and be overwritten silently, since nothing compared the remote to the manifest.
+          repository: ${{ steps.read.outputs.repo }}
           path: existing
           ssh-key: ${{ secrets.TEMPLATE_SYNC_KEY }}
 
-      - name: Replace its contents with the generated tree
+      - name: The button URLs hardcode main
+        run: |
+          set -euo pipefail
+          branch="$(git -C existing symbolic-ref --short HEAD)"
+          # Every deployButton in the manifest is a `…/tree/main/<path>` URL. If the templates
+          # repo's default branch is anything else, a green sync would push under a branch name
+          # the button never reads — and tell nobody. (Renaming a GitHub repo keeps its default
+          # branch, so this fires only at creation.)
+          if [ "$branch" != "main" ]; then
+            echo "::error::The templates repo's default branch is '$branch', but the manifest's deployButtons say /tree/main/. Rename the default branch to main."
+            exit 1
+          fi
+
+      - name: Replace each template's directory with the generated tree
+        id: diff
         run: |
           set -euo pipefail
           cd existing
-          # Everything tracked goes, so a file the generator stopped emitting disappears too.
-          git rm -rq --ignore-unmatch .
-          # "$src/." copies the CONTENTS; plain "$src" would nest the directory inside itself.
-          # `cp -T` would say the same thing but is GNU-only, so it cannot be tested off-runner.
-          cp -R "$RUNNER_TEMP/out/." .
-          git add -A
+          git config user.name  "trokky-bot"
+          git config user.email "bot@trokky.dev"
 
-      - name: Diff
-        id: diff
-        run: |
-          cd existing
-
-          # `git rm` removed everything, then `git add -A` re-added what is not ignored. A file
-          # the generator emits that the generated .gitignore also matches would therefore be
-          # deleted from the template repo by a job that stayed green.
-          ignored="$(git status --porcelain --ignored | grep '^!!' || true)"
-          if [ -n "$ignored" ]; then
-            echo "::error::The generator emits files its own .gitignore excludes; they would be dropped:"
-            echo "$ignored"
-            exit 1
-          fi
           # Dependencies are `^` ranges, so `--package-lock-only` re-resolves every run and any
-          # upstream patch flips the lockfile. Pushing on that alone would mean a commit per run,
-          # each implying a change that is not there.
-          if git diff --cached --quiet -- . ':(exclude)package-lock.json'; then
+          # upstream patch flips the lockfile. Pushing on that alone would mean a commit per
+          # run, each implying a change that is not there — so lockfiles may flip silently, and
+          # everything else must hold still. One exclude per template, gathered as the loop
+          # goes, keeps this exact instead of glob-guessing at depth.
+          excludes=()
+          changed_ids=""
+
+          while IFS=$'\t' read -r id path comp; do
+            # An array, not an unquoted string: word splitting is a bash behaviour that zsh does
+            # not share, so a string could only ever be exercised on the runner.
+            IFS=$'\n' read -r -d '' -a flags < <(
+              node -p "Object.entries(JSON.parse(process.argv[1])).map(([k, v]) => '--' + k + '=' + v).join('\n')" "$comp" && printf '\0'
+            )
+
+            echo "Generating $id into $RUNNER_TEMP/out/$id"
+            node "$GITHUB_WORKSPACE/dist/cli.js" "trokky-$id" --yes --out="$RUNNER_TEMP/out/$id" "${flags[@]}"
+            # The generator emits no lockfile — a scaffolded project should resolve fresh. A
+            # template checkout is different: it is what Cloudflare builds, and a build that
+            # runs npm ci fails outright without one. Generated here and committed, it also
+            # stays honest with the package.json emitted alongside it.
+            ( cd "$RUNNER_TEMP/out/$id" && npm install --package-lock-only --no-audit --no-fund )
+
+            # Everything tracked in the directory goes, so a file the generator stopped
+            # emitting disappears too. Files elsewhere — the repo's README, say — are not
+            # touched.
+            git rm -rq --ignore-unmatch -- "$path"
+            mkdir -p "$path"
+            # "$src/." copies the CONTENTS; plain "$src" would nest the directory inside
+            # itself. `cp -T` would say the same thing but is GNU-only, so it cannot be tested
+            # off-runner.
+            cp -R "$RUNNER_TEMP/out/$id/." "$path/"
+            git add -- "$path"
+            excludes+=(":(exclude)$path/package-lock.json")
+            changed_ids="$changed_ids $id"
+
+            # A file the generator emits that the generated .gitignore also matches would be
+            # deleted from the repo by a job that stayed green. Ask explicitly, per directory.
+            ignored="$(git status --porcelain --ignored -- "$path" | grep '^!!' || true)"
+            if [ -n "$ignored" ]; then
+              echo "::error::The generator emits files its own .gitignore excludes; they would be dropped:"
+              echo "$ignored"
+              exit 1
+            fi
+          done < "$RUNNER_TEMP/templates.tsv"
+
+          if git diff --cached --quiet -- . "${excludes[@]}"; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No change beyond the lockfile; leaving the template repo alone."
+            echo "No change beyond lockfiles; leaving the templates repo alone."
             git reset -q
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            git diff --cached --stat | tail -40
+            echo "templates=$changed_ids" >> "$GITHUB_OUTPUT"
+            git diff --cached --stat -- . "${excludes[@]}" | tail -40
           fi
 
       - name: Push
@@ -163,12 +182,10 @@ jobs:
         run: |
           set -euo pipefail
           cd existing
-          git config user.name  "trokky-bot"
-          git config user.email "bot@trokky.dev"
           git commit -q -m "Regenerate from create-trokky ${{ github.sha }}
 
           This repository is build output. It is regenerated from the generator's
-          \`manifest.templates\` entry on every green CI; edit the generator, not this.
+          \`manifest.templates\` entries on every green CI; edit the generator, not this.
 
-          Composition: ${{ matrix.template }}"
+          Templates:${{ steps.diff.outputs.templates }}"
           git push
