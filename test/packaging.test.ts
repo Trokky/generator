@@ -20,12 +20,29 @@ import { manifest } from '../src/manifest.js'
 /**
  * `npm pack` runs `prepare`, and anything that script writes to stdout lands in front of the
  * JSON. Ours writes to stderr for that reason, but npm's own output is not ours to control, so
- * the parse starts at the first bracket rather than assuming a clean stream.
+ * the parse starts at the first opening value and stops at the last closing bracket rather
+ * than assuming a clean, single-document stream.
+ *
+ * The shape itself changed under npm 12 (release.yml upgrades npm past what Node 22 bundles,
+ * while CI keeps the bundled one — this test runs under both): ≤ 11 emits an array of
+ * packuments, ≥ 12 wraps the same packument in an object keyed by the package name. The two
+ * are normalized here, and npm 12's brackets sit deep inside that map — a first-bracket slice
+ * would have taken npm's file listing and thrown on the keys after it, not parsed the packument.
  */
+type Packument = { files: { path: string }[] }
 const packOutput = execFileSync('npm', ['pack', '--dry-run', '--json'], { encoding: 'utf8' })
-const packed: string[] = JSON.parse(packOutput.slice(packOutput.indexOf('[')))[0].files.map(
-  (f: { path: string }) => f.path,
-)
+const start = Math.min(...['{', '['].map(c => packOutput.indexOf(c)).filter(i => i !== -1))
+const end = Math.max(packOutput.lastIndexOf(']'), packOutput.lastIndexOf('}'))
+const parsed = JSON.parse(packOutput.slice(start, end + 1)) as
+  | Packument[]
+  | Packument
+  | Record<string, Packument>
+// Whatever the wrapper — an array, a name-keyed map, or a bare packument a future npm might
+// emit — the file list is one hop away. Object.values takes it from the last two alike.
+const packument: Packument = Array.isArray(parsed)
+  ? parsed[0]
+  : Object.values(parsed as Record<string, Packument>)[0]
+const packed: string[] = packument.files.map(f => f.path)
 
 describe('the published tarball', () => {
   it('ships every file set the generator copies from', () => {
@@ -43,6 +60,8 @@ describe('the published tarball', () => {
 
   it('carries no file npm will silently drop', () => {
     // If this ever fails, the file needs a dotless name in `files/` and a rename in generate().
+    // The non-empty guard makes the exclusion mean something: an empty list proves nothing.
+    expect(packed.length).toBeGreaterThan(8)
     expect(packed.filter(path => /(^|\/)\.gitignore$/.test(path))).toEqual([])
   })
 })
