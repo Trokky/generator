@@ -137,6 +137,11 @@
           "id": "magazine",
           "title": "Magazine",
           "hint": "Articles, authors, categories, documents, pages."
+        },
+        {
+          "id": "conference",
+          "title": "Conference",
+          "hint": "Event, venue, tracks, speakers, sessions, sponsors."
         }
       ]
     }
@@ -225,10 +230,11 @@
       },
       "allow": {
         "content": [
-          "magazine"
+          "magazine",
+          "conference"
         ]
       },
-      "because": "A site needs something to render. Choose the magazine content model, or drop the frontend."
+      "because": "A site needs something to render. Choose the magazine or conference content model, or drop the frontend."
     }
   ],
   "defaults": {
@@ -325,6 +331,21 @@
         "images": "cloudflare-images",
         "parts": "full-site",
         "content": "magazine"
+      }
+    },
+    {
+      "id": "conference",
+      "title": "The conference template",
+      "repo": "https://github.com/Trokky/templates",
+      "path": "conference",
+      "deployButton": "https://deploy.workers.cloudflare.com/?url=https://github.com/Trokky/templates/tree/main/conference",
+      "composition": {
+        "target": "workers",
+        "data": "cloudflare-d1",
+        "media": "cloudflare-r2",
+        "images": "cloudflare-images",
+        "parts": "full-site",
+        "content": "conference"
       }
     }
   ]

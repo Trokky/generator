@@ -1,0 +1,73 @@
+---
+import Base from '../layouts/Base.astro'
+import { load } from '../trokky/page'
+const s = await load(Astro)
+const v = s.venue
+const ev = s.event
+const firstWord = v?.name ? String(v.name).split(' ')[0] : 'Hall'
+const verticals = Array.from({ length: 9 }, (_, i) => i * 100)
+const horizontals = Array.from({ length: 4 }, (_, i) => i * 90)
+---
+<Base title="Venue & tickets" event={ev}>
+  <section class="venue-hero"><div class="wrap">
+    {v ? (
+      <>
+        <div class="eyebrow">The hall</div>
+        <h1 class="display" style="margin:0.4rem 0 1.2rem">{v.name}</h1>
+        <p class="lede">{v.address}</p>
+        {v.about && <p style="max-width:62ch">{v.about}</p>}
+      </>
+    ) : (
+      <p class="empty-note lede">No venue yet — open <a href="/studio">Studio</a> and describe the hall.</p>
+    )}
+    <div class="venue-map">
+      <svg viewBox="0 0 800 360" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <rect width="800" height="360" fill="#F2EDE4" />
+        {verticals.map(x => <line x1={x} y1={0} x2={x} y2={360} stroke="#E4DCCD" stroke-width={1} />)}
+        {horizontals.map(y => <line x1={0} y1={y} x2={800} y2={y} stroke="#E4DCCD" stroke-width={1} />)}
+        <rect x={60} y={120} width={160} height={120} fill="none" stroke="#14110F" stroke-width={2} />
+        <text x={140} y={185} text-anchor="middle" font-family="Fraunces, serif" font-size={22} fill="#14110F">{firstWord}</text>
+        <path d="M250 220 Q 400 230 540 250 L 800 320" stroke="#3D6B9E" stroke-width={14} fill="none" opacity={0.5} />
+        <circle cx={140} cy={180} r={14} fill="#C8442B" />
+        <circle cx={140} cy={180} r={28} fill="#C8442B" opacity={0.2} />
+        <text x={170} y={186} font-family="JetBrains Mono, monospace" font-size={13} fill="#4A4540">{v?.name ?? ''}</text>
+        <text x={470} y={300} font-family="JetBrains Mono, monospace" font-size={12} fill="#3D6B9E">Rio Tejo</text>
+      </svg>
+    </div>
+  </div></section>
+
+  <section class="section"><div class="wrap">
+    <div class="section-head">
+      <div><span class="eyebrow">Getting there</span><h2 class="display">Travel</h2></div>
+    </div>
+    <div class="travel-grid">
+      {(v?.travel ?? []).length > 0
+        ? v.travel.map((t: any) => (
+            <div class="travel-item">
+              <div class="mode">{t.mode}</div>
+              <p>{t.detail}</p>
+            </div>
+          ))
+        : <p class="empty-note">No travel details yet — add them to the Venue document in Studio.</p>}
+    </div>
+  </div></section>
+
+  <section class="section section-noborder" id="tickets"><div class="wrap">
+    <div class="section-head">
+      <div><span class="eyebrow">Tickets</span><h2 class="display">Get a pass</h2></div>
+    </div>
+    <div class="tickets">
+      {(v?.tickets ?? []).length > 0
+        ? v.tickets.map((t: any) => (
+            <div class={`ticket ${t.featured ? 'is-featured' : ''}`}>
+              <div class="t-name">{t.name}</div>
+              <div class="t-price">{t.price}</div>
+              <p class="t-note">{t.note}</p>
+              <ul>{(t.features ?? []).map((f: string) => <li>{f}</li>)}</ul>
+              <a class="t-cta" href="#">Reserve a {String(t.name).toLowerCase()} pass</a>
+            </div>
+          ))
+        : <p class="empty-note">No tickets yet — add them to the Venue document in Studio.</p>}
+    </div>
+  </div></section>
+</Base>

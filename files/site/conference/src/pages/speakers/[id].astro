@@ -1,0 +1,32 @@
+---
+import Base from '../../layouts/Base.astro'
+import { load } from '../../trokky/page'
+import Avatar from '../../components/Avatar.astro'
+import SessionCard from '../../components/SessionCard.astro'
+const s = await load(Astro)
+const sp = await s.speaker(Astro.params.id!)
+if (!sp) return new Response(null, { status: 404 })
+---
+<Base title={sp.name} event={s.event}>
+  <section><div class="wrap">
+    <a class="back-link" href="/speakers">← All speakers</a>
+    <div class="speaker-detail-grid">
+      <div class="speaker-aside">
+        <Avatar speaker={sp} size={280} />
+        {(sp.pronouns || sp.city) && <p class="pronoun">{[sp.pronouns, sp.city].filter(Boolean).join(" · ")}</p>}
+      </div>
+      <div class="detail-main">
+        {sp.role && <div class="eyebrow">{sp.role}</div>}
+        <h1 class="display">{sp.name}</h1>
+        {sp.org && <p class="lede" style="color:var(--ink-soft)">{sp.org}</p>}
+        {sp.bio && <p class="detail-prose">{sp.bio}</p>}
+        {sp.sessions.length > 0 && (
+          <>
+            <h3 class="serif" style="margin:2.5rem 0 1rem">Sessions at {s.event?.name}</h3>
+            {sp.sessions.map(x => <SessionCard session={x} showDay />)}
+          </>
+        )}
+      </div>
+    </div>
+  </div></section>
+</Base>

@@ -1,0 +1,62 @@
+---
+import Base from '../../layouts/Base.astro'
+import { load } from '../../trokky/page'
+import { formatDate } from '../../trokky/site'
+import SessionCard from '../../components/SessionCard.astro'
+const s = await load(Astro)
+const tracks = await s.tracks()
+const all = await s.sessions()
+const types = [...new Set(all.map(x => String(x.type)))]
+const type = Astro.url.searchParams.get('type') ?? ''
+const track = Astro.url.searchParams.get('track') ?? ''
+const list = await s.sessions({ type: type || undefined, track: track || undefined })
+const groups: { day: string; items: Record<string, any>[] }[] = []
+// A session with no parseable day has no group header to sit under; it renders on its own detail
+// page and nowhere else.
+for (const x of list.filter((x: { day?: string }) => x.day)) {
+  const g = groups[groups.length - 1]
+  if (g && g.day === String(x.day)) g.items.push(x)
+  else groups.push({ day: String(x.day), items: [x] })
+}
+/**
+ * Filter-bar link: carries the current search params except the one being changed (empty string clears).
+ */
+const link = (next: { type?: string; track?: string }) => {
+  const t = next.type !== undefined ? next.type : type
+  const k = next.track !== undefined ? next.track : track
+  const q = new URLSearchParams()
+  if (t) q.set('type', t)
+  if (k) q.set('track', k)
+  return q.toString() ? `/sessions?${q.toString()}` : '/sessions'
+}
+---
+<Base title="Sessions" event={s.event}>
+  <section class="detail-head"><div class="wrap">
+    <span class="eyebrow">{list.length} sessions</span>
+    <h1 class="display">Every talk, workshop &amp; panel</h1>
+    <p class="lede" style="max-width:54ch;color:var(--ink-soft)">Filter by type or track — every session on the programme, in day order.</p>
+  </div></section>
+
+  <section class="section section-noborder"><div class="wrap">
+    {all.length > 0 && (
+      <>
+        <div class="filter-bar">
+          <a href={link({ type: '' })} class={!type ? 'is-active' : ''}>All</a>
+          {types.map(t => <a href={link({ type: t })} class={type === t ? 'is-active' : ''}>{t}</a>)}
+        </div>
+        <div class="filter-bar">
+          <a href={link({ track: '' })} class={!track ? 'is-active' : ''}>Every track</a>
+          {tracks.map(t => <a href={link({ track: String(t.id) })} class={track === String(t.id) ? 'is-active' : ''}>{t.name}</a>)}
+        </div>
+        {groups.map(g => (
+          <>
+            <h3 class="session-day-title">{formatDate(g.day)}</h3>
+            {g.items.map(x => <SessionCard session={x} />)}
+          </>
+        ))}
+        {!list.length && <p class="empty-note">No sessions match those filters.</p>}
+      </>
+    )}
+    {!all.length && <p class="empty-note">No sessions yet — open <a href="/studio">Studio</a> and add the first one.</p>}
+  </div></section>
+</Base>

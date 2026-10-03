@@ -1,0 +1,27 @@
+---
+/**
+ * A speaker's portrait block. With an uploaded photo it renders that; without one it draws the
+ * deterministic monogram — a duotone block in a color seeded from the speaker's id — so the
+ * template ships no image assets at all.
+ */
+import { mediaUrl, colorFor, initials } from '../trokky/site'
+interface Props { speaker: Record<string, any>; size?: number }
+const { speaker, size = 220 } = Astro.props
+
+const photo = mediaUrl(speaker.photo, 'thumbnail')
+const bg = colorFor(String(speaker.id))
+const txt = '#FAF7F2'
+const init = initials(String(speaker.name))
+const svgSize = Math.round(size)
+---
+{photo ? (
+  <img class="avatar" src={photo} alt={speaker.name} style={`width:${size}px;height:${size}px`} />
+) : (
+  <span class="avatar" role="img" aria-label={speaker.name} style={`width:${size}px;height:${size}px;background:${bg};color:${txt}`}>
+    <svg viewBox={`0 0 ${svgSize} ${svgSize}`} width={svgSize} height={svgSize} xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width={svgSize} height={svgSize} fill={bg} />
+      <rect x="0" y={svgSize * 0.72} width={svgSize} height={svgSize * 0.28} fill="#000" opacity="0.18" />
+      <text x="50%" y="50%" dy="0.06em" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-weight="500" font-size={Math.round(svgSize * 0.34)} fill={txt}>{init}</text>
+    </svg>
+  </span>
+)}

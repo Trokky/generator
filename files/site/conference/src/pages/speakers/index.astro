@@ -1,0 +1,20 @@
+---
+import Base from '../../layouts/Base.astro'
+import { load } from '../../trokky/page'
+import SpeakerCard from '../../components/SpeakerCard.astro'
+const s = await load(Astro)
+const speakers = await s.speakers()
+---
+<Base title="Speakers" event={s.event}>
+  <section class="detail-head"><div class="wrap">
+    <span class="eyebrow">{speakers.length} speakers</span>
+    <h1 class="display">The line-up</h1>
+    <p class="lede" style="max-width:54ch;color:var(--ink-soft)">The people on the stages and in the rooms — every card links to the speaker's own page, with their sessions.</p>
+  </div></section>
+
+  <section class="section section-noborder"><div class="wrap">
+    {speakers.length > 0
+      ? <div class="card-grid">{speakers.map(sp => <SpeakerCard speaker={sp} />)}</div>
+      : <p class="empty-note">No speakers yet — open <a href="/studio">Studio</a> and add the first one.</p>}
+  </div></section>
+</Base>

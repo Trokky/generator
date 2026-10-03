@@ -1,0 +1,37 @@
+---
+import Base from '../layouts/Base.astro'
+import { load } from '../trokky/page'
+import SponsorMark from '../components/SponsorMark.astro'
+const s = await load(Astro)
+const tiers = await s.sponsorsByTier()
+---
+<Base title="Sponsors" event={s.event}>
+  <section class="detail-head"><div class="wrap">
+    <span class="eyebrow">Grouped by tier</span>
+    <h1 class="display">Sponsors</h1>
+    <p class="lede" style="max-width:54ch;color:var(--ink-soft)">The partners who make Frameworks Live possible, grouped by tier.</p>
+  </div></section>
+
+  <section class="section section-noborder"><div class="wrap">
+    {tiers.length > 0 ? tiers.map(t => (
+      <div class="sponsor-tier">
+        <div class="sponsor-tier-head">
+          <h3 class="serif">{t.tier}</h3>
+          <span class="tier-line"></span>
+          <span style="font-family:var(--mono);font-size:0.78rem;color:var(--ink-mute)">{t.sponsors.length} sponsor{t.sponsors.length > 1 ? 's' : ''}</span>
+        </div>
+        <div class={`sponsor-grid tier-${t.tier}`}>
+          {t.sponsors.map(sp => (
+            <a class="sponsor-card" href={sp.url || '#'}>
+              <SponsorMark sponsor={sp} />
+              <p class="sponsor-blurb">{sp.blurb}</p>
+              <span class="sponsor-link">visit {String(sp.name).toLowerCase()} →</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    )) : (
+      <p class="empty-note">No sponsors yet — open <a href="/studio">Studio</a> and add the first one.</p>
+    )}
+  </div></section>
+</Base>

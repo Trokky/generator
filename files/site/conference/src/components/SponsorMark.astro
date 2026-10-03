@@ -1,0 +1,16 @@
+---
+/**
+ * A sponsor's mark. With an uploaded logo it renders that; without one it draws the wordmark
+ * plate in a color seeded from the sponsor's name.
+ */
+import { mediaUrl, colorFor } from '../trokky/site'
+interface Props { sponsor: Record<string, any> }
+const { sponsor } = Astro.props
+
+const logo = mediaUrl(sponsor.logo, 'thumbnail')
+---
+{logo ? (
+  <img class="sponsor-mark-img" src={logo} alt={sponsor.name} />
+) : (
+  <span class="sponsor-mark" style={`--mark: ${colorFor(String(sponsor.name))}`}>{sponsor.name}</span>
+)}

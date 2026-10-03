@@ -155,7 +155,11 @@ jobs:
             cp -R "$RUNNER_TEMP/out/$id/." "$path/"
             git add -- "$path"
             excludes+=(":(exclude)$path/package-lock.json")
-            changed_ids="$changed_ids $id"
+            # The message names templates that changed, not templates that were iterated.
+            # Mirrors the final gate: a lockfile-only diff counts as no change.
+            if ! git diff --cached --quiet -- "$path" "${excludes[@]}"; then
+              changed_ids="$changed_ids $id"
+            fi
 
             # A file the generator emits that the generated .gitignore also matches would be
             # deleted from the repo by a job that stayed green. Ask explicitly, per directory.

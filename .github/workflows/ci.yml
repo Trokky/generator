@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        case: [workers-full, workers-studio, workers-api, node-full, node-studio, node-api, node-postgres, node-s3]
+        case: [workers-full, workers-studio, workers-api, node-full, node-studio, node-api, node-postgres, node-s3, workers-conference]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

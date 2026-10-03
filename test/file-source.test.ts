@@ -23,11 +23,12 @@ const compositions = [
   { name: 'a', target: 'workers' as const, parts: 'full-site' as const, content: 'magazine' as const },
   { name: 'b', target: 'node' as const, parts: 'studio' as const, content: 'magazine' as const },
   { name: 'c', target: 'workers' as const, parts: 'api' as const, content: 'blank' as const },
+  { name: 'd', target: 'workers' as const, parts: 'full-site' as const, content: 'conference' as const },
 ]
 
 describe('disk and bundle are interchangeable', () => {
   for (const composition of compositions) {
-    it(`produces an identical tree for ${composition.target}/${composition.parts}`, () => {
+    it(`produces an identical tree for ${composition.target}/${composition.parts}/${composition.content}`, () => {
       const config = withDefaults(composition)
       const fromDisk = generate(config, fs)
       const fromBundle = generate(config, inlined)

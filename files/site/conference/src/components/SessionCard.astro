@@ -1,0 +1,27 @@
+---
+/**
+ * A session row. In list form the meta shows the speakers, then the track; with `showDay` it
+ * shows the day and the track instead, for speaker pages where the speakers are already known.
+ */
+import { formatDate } from '../trokky/site'
+interface Props { session: Record<string, any>; showDay?: boolean }
+const { session, showDay = false } = Astro.props
+const s = session
+---
+<a class="session-row" href={`/sessions/${s.id}`}>
+  <span class="session-time">
+    <span class="t-start">{s.start}</span>
+    <span class="t-end">{s.end}</span>
+  </span>
+  <span class="session-pill" style={`--c: ${s.track?.color || '#333'}`}>{s.type}</span>
+  <span class="session-main">
+    <span class="session-title">{s.title}</span>
+    <span class="session-meta">
+      {showDay
+        ? <>{formatDate(s.day)}{s.track ? <> · <span class="session-track">{s.track.name}</span></> : null}</>
+        : s.speakers.map((sp: any) => <span class="session-speaker">{sp.name}</span>)}
+      {!showDay && s.track ? <> · <span class="session-track">{s.track.name}</span></> : null}
+    </span>
+  </span>
+  <span class="session-arrow" aria-hidden="true">→</span>
+</a>

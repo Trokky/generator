@@ -1,0 +1,12 @@
+---
+import Avatar from './Avatar.astro'
+interface Props { speaker: Record<string, any>; size?: number }
+const { speaker, size = 220 } = Astro.props
+---
+<a class="card speaker-card" href={`/speakers/${speaker.id}`}>
+  <Avatar speaker={speaker} size={size} />
+  <div class="card-body">
+    <h3 class="card-name">{speaker.name}</h3>
+    <p class="card-role">{[speaker.role, speaker.org].filter(Boolean).join(' · ')}</p>
+  </div>
+</a>

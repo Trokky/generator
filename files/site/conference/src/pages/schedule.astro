@@ -1,0 +1,65 @@
+---
+import Base from '../layouts/Base.astro'
+import { load } from '../trokky/page'
+import { formatDate } from '../trokky/site'
+const s = await load(Astro)
+const tracks = await s.tracks()
+const days = await s.days()
+const dayBlocks = await Promise.all(days.map(async day => ({ day, sessions: await s.sessions({ day }) })))
+---
+<Base title="Schedule" event={s.event}>
+  <section class="detail-head"><div class="wrap">
+    <span class="eyebrow">{days.length} days · {tracks.length} tracks</span>
+    <h1 class="display">The full programme</h1>
+    <p class="lede" style="max-width:54ch;color:var(--ink-soft)">Every session, every room. Click a block for the talk detail.</p>
+  </div></section>
+
+  <section class="section section-noborder"><div class="wrap">
+    {dayBlocks.map(({ day, sessions }, i) => {
+      const rows = [...new Set(sessions.map(x => String(x.start)))].sort((a, b) => (a < b ? -1 : 1))
+      return (
+        <>
+          <div class="schedule-day-head">
+            <h2 class="display">{formatDate(day)}</h2>
+            <span class="date">Day {i + 1} · {sessions.length} sessions</span>
+          </div>
+          <div class="track-legend">
+            {tracks.map(t => <span><i style={`background:${t.color || '#333'}`}></i>{t.name}</span>)}
+          </div>
+          <div class="schedule-cols" style={`--tracks: ${tracks.length}`}>
+            <div class="col-spacer"></div>
+            {tracks.map(t => <div class="col-head"><h4>{t.name}</h4><div class="room">{t.room}</div></div>)}
+          </div>
+          <div class="schedule" style={`--tracks: ${tracks.length}`}>
+            {rows.map(time => {
+              const slot = sessions.filter(x => String(x.start) === time)
+              const endTime = String(slot[0]?.end ?? '')
+              return (
+                <>
+                  <div class="schedule-time">{time}<br /><span style="color:var(--ink-mute)">{endTime}</span></div>
+                  <div class="schedule-slots" style={`--tracks: ${tracks.length}`}>
+                    {tracks.map(t => {
+                      const x = slot.find(y => y.track?.id === t.id)
+                      if (!x) return <div class="schedule-slot is-empty"></div>
+                      return (
+                        <div class="schedule-slot" style={`--c:${t.color || '#333'}`}>
+                          <div class="slot-bar"></div>
+                          <a href={`/sessions/${x.id}`}>
+                            <div class="slot-type">{x.type}</div>
+                            <div class="slot-title">{x.title}</div>
+                            <div class="slot-who">{x.speakers.map((sp: any) => sp.name).join(' · ')}</div>
+                          </a>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )
+            })}
+          </div>
+        </>
+      )
+    })}
+    {!dayBlocks.length && <p class="empty-note">No sessions yet — open <a href="/studio">Studio</a> and add the first one.</p>}
+  </div></section>
+</Base>

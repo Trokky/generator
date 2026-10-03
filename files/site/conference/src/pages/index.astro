@@ -1,0 +1,82 @@
+---
+import Base from '../layouts/Base.astro'
+import { load } from '../trokky/page'
+import { formatDateRange, formatDate } from '../trokky/site'
+import SpeakerCard from '../components/SpeakerCard.astro'
+import SessionCard from '../components/SessionCard.astro'
+import SponsorMark from '../components/SponsorMark.astro'
+const s = await load(Astro)
+const ev = s.event
+const featured = (await s.speakers()).slice(0, 4)
+const days = await s.days()
+const dayOne = (await (s.sessions({ day: days[0] }))).slice(0, 5)
+const firstDay = dayOne[0]?.day ?? days[0]
+const platinum = (await s.sponsorsByTier())[0]?.sponsors ?? []
+const stats = ev?.stats ?? []
+const speakerCount = ev?.stats?.[3]?.value ?? String(featured.length)
+---
+<Base event={ev} description={ev?.tagline}>
+  {!ev && (
+    <section class="hero"><div class="wrap">
+      <p class="empty-note lede">Nothing here yet — open <a href="/studio">Studio</a>, claim the instance, and the conference seeds itself.</p>
+    </div></section>
+  )}
+  {ev && (
+    <section class="hero"><div class="wrap">
+      <div class="hero-eyebrow eyebrow">{ev.edition} edition · {ev.city}</div>
+      <h1 class="display">{ev.name}</h1>
+      <p class="lede">{ev.tagline}</p>
+      {ev.description && <p style="max-width:54ch;margin-bottom:2rem">{ev.description}</p>}
+      <div class="hero-meta">
+        <span><i class="dot"></i>{formatDateRange(ev.startDate, ev.endDate)}</span>
+        {ev.venue && <span>{ev.venue}, {ev.city}</span>}
+        {stats[2] && <span>{stats[2].value} sessions</span>}
+      </div>
+    </div></section>
+  )}
+
+  {stats.length > 0 && (
+    <section><div class="wrap"><div class="stat-strip">
+      {stats.map((st: any) => <div class="stat"><div class="v">{st.value}</div><div class="l">{st.label}</div></div>)}
+    </div></div></section>
+  )}
+
+  {featured.length > 0 && (
+    <section class="section"><div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Featured speakers</span>
+          <h2 class="display">The people on the main stage</h2>
+        </div>
+        <a class="more" href="/speakers">All {speakerCount} →</a>
+      </div>
+      <div class="card-grid">{featured.map(sp => <SpeakerCard speaker={sp} />)}</div>
+    </div></section>
+  )}
+
+  {dayOne.length > 0 && (
+    <section class="section section-noborder"><div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Day one · {formatDate(firstDay)}</span>
+          <h2 class="display">The opening line-up</h2>
+        </div>
+        <a class="more" href="/schedule">Full schedule →</a>
+      </div>
+      {dayOne.map(x => <SessionCard session={x} />)}
+    </div></section>
+  )}
+
+  {platinum.length > 0 && (
+    <section class="section"><div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">With thanks to</span>
+          <h2 class="display">Our platinum partners</h2>
+        </div>
+        <a class="more" href="/sponsors">All sponsors →</a>
+      </div>
+      <div class="sponsor-grid tier-platinum">{platinum.map(sp => <SponsorMark sponsor={sp} />)}</div>
+    </div></section>
+  )}
+</Base>

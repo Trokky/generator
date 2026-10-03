@@ -140,10 +140,11 @@ describe('the valid space', () => {
               for (const content of ids('content'))
                 if (validate({ name: 'x', target, data, media, images, parts, content } as never).valid) valid++
 
-    // parts x content is 5, not 6: only full-site + blank is impossible.
-    // Workers: 1 data x 1 media x 2 images x 5 = 10
-    // Node:    2 data x 2 media x 2 images x 5 = 40   (s3-media joined filesystem-media)
-    expect(valid).toBe(50)
+    // parts x content is 8, not 9: only full-site + blank is impossible. The two content models
+    // also compose with api and studio on their own -- schemas without a site is a valid shape.
+    // Workers: 1 data x 1 media x 2 images x 8 = 16
+    // Node:    2 data x 2 media x 2 images x 8 = 64   (s3-media joined filesystem-media)
+    expect(valid).toBe(80)
   })
 })
 
@@ -199,6 +200,24 @@ describe('templates: the only compositions a Deploy button can serve', () => {
       const config = withDefaults({ name: 'x', ...template.composition } as never)
       expect(validate(config).valid, template.id).toBe(true)
       expect(() => generate(config, fsFileSource()), template.id).not.toThrow()
+    }
+  })
+
+  // The build repo's download button ships the seed binaries for the magazine template only —
+  // it keys the media-asset bundle on `content === 'magazine'`. A media-bearing template behind
+  // the button would zip an incomplete download and nothing in either repo would warn. Pin the
+  // assumption here so the next template fails a test, not a user's download.
+  it('carries no binary files in its template composition except the magazine seed, which trokky.build bundles by id', () => {
+    for (const template of manifest.templates) {
+      const config = withDefaults({ name: 'x', ...template.composition } as never)
+      const tree = generate(config, fsFileSource())
+      const binaries = [...tree.keys()].filter(p => tree.get(p) instanceof Uint8Array)
+      if (template.id === 'magazine') {
+        expect(binaries.length, template.id).toBeGreaterThan(0)
+        expect(binaries.every(p => p.startsWith('public/seed/')), template.id).toBe(true)
+      } else {
+        expect(binaries, template.id).toEqual([])
+      }
     }
   })
 })

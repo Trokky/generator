@@ -18,22 +18,50 @@ import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 
 /**
- * One per distinct code path, not all 30 combinations: the axes that change what is *emitted*
+ * One per distinct code path, not all 80 valid combinations: the axes that change what is *emitted*
  * are target, parts and content. Adapter choice within a target changes only a string and a
- * dependency, and the package's own conformance suites cover the adapters themselves.
+ * dependency, and the package's own conformance suites cover the adapters themselves. The
+ * conference content model gets its own full-site case per target: its seed differs, its pages
+ * differ, and its home page never carries a thumbnail because the template ships no media.
  */
-const CASES = [
-  { id: 'workers-full',   flags: ['--target=workers', '--parts=full-site', '--content=magazine'] },
-  { id: 'workers-studio', flags: ['--target=workers', '--parts=studio', '--content=magazine'] },
-  { id: 'workers-api',    flags: ['--target=workers', '--parts=api', '--content=blank'] },
-  { id: 'node-full',      flags: ['--target=node', '--parts=full-site', '--content=magazine'] },
-  { id: 'node-studio',    flags: ['--target=node', '--parts=studio', '--content=magazine'] },
-  { id: 'node-api',       flags: ['--target=node', '--parts=api', '--content=blank'] },
-  { id: 'node-postgres',  flags: ['--target=node', '--parts=studio', '--content=magazine', '--data=postgres-data'], skipBoot: 'needs a database' },
+const CASES = [{
+  id: 'workers-full',
+  flags: ['--target=workers', '--parts=full-site', '--content=magazine'],
+  homeProbe: '/articles/',
+}, {
+  id: 'workers-studio', flags: ['--target=workers', '--parts=studio', '--content=magazine'],
+}, {
+  id: 'workers-api', flags: ['--target=workers', '--parts=api', '--content=blank'],
+}, {
+  id: 'node-full',
+  flags: ['--target=node', '--parts=full-site', '--content=magazine'],
+  homeProbe: '/articles/',
+}, {
+  id: 'node-studio', flags: ['--target=node', '--parts=studio', '--content=magazine'],
+}, {
+  id: 'node-api', flags: ['--target=node', '--parts=api', '--content=blank'],
+}, {
+  id: 'node-postgres', flags: ['--target=node', '--parts=studio', '--content=magazine', '--data=postgres-data'], skipBoot: 'needs a database',
+}, {
   // full-site, not studio: the thumbnail check below only runs for full-site, and a media
   // adapter that stores nothing is exactly what this case exists to catch.
-  { id: 'node-s3',        flags: ['--target=node', '--parts=full-site', '--content=magazine', '--media=s3-media'], env: 's3' },
-]
+  id: 'node-s3',
+  flags: ['--target=node', '--parts=full-site', '--content=magazine', '--media=s3-media'],
+  homeProbe: '/articles/',
+  env: 's3',
+}, {
+  id: 'workers-conference',
+  flags: ['--target=workers', '--parts=full-site', '--content=conference'],
+  homeProbe: '/speakers/',
+  thumbnails: false,
+}, {
+  // Node exercises the singleton-consistency assertion at boot, which the Worker never runs.
+  // Kept out of the CI matrix: one conference boot is enough there.
+  id: 'node-conference',
+  flags: ['--target=node', '--parts=full-site', '--content=conference'],
+  homeProbe: '/speakers/',
+  thumbnails: false,
+}]
 
 const flags = Object.fromEntries(process.argv.slice(2).map(a => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? 'true']))
 const only = flags.only
@@ -171,27 +199,30 @@ async function smoke(testCase) {
     }
 
     if (testCase.flags.includes('--parts=full-site')) {
-      // The seed uploads and the variants it triggers are the slowest part of a first run.
+      // The seed uploads and the variants they trigger are the slowest part of a first run; the
+      // conference template ships no media, so only its seed is being waited on.
       let html = ''
       const deadline = Date.now() + 90_000
       while (Date.now() < deadline) {
         const home = await fetch(`${base}/`)
         if (!home.ok) throw new Error('site did not render')
         html = await home.text()
-        if (html.includes('/articles/')) break
+        if (html.includes(testCase.homeProbe ?? '/articles/')) break
         await sleep(2000)
       }
-      if (!html.includes('/articles/')) throw new Error('site rendered but the seed never appeared')
+      if (!html.includes(testCase.homeProbe ?? '/articles/')) throw new Error('site rendered but the seed never appeared')
       notes.push('site')
 
       // A thumbnail is the end of the whole media pipeline: upload, process, store, serve. It
       // 404s quietly when the processor has no variants configured, and the page still looks fine.
-      const thumbnail = html.match(/\/api\/media\/[^"']+\/variants\/thumbnail/)?.[0]
-      if (!thumbnail) throw new Error('no thumbnail on the home page')
-      const image = await fetch(`${base}${thumbnail}`)
-      const type = image.headers.get('content-type') ?? ''
-      if (!image.ok || !type.startsWith('image/')) throw new Error(`thumbnail did not serve: ${image.status} ${type}`)
-      notes.push('thumbnails')
+      if (testCase.thumbnails !== false) {
+        const thumbnail = html.match(/\/api\/media\/[^"']+\/variants\/thumbnail/)?.[0]
+        if (!thumbnail) throw new Error('no thumbnail on the home page')
+        const image = await fetch(`${base}${thumbnail}`)
+        const type = image.headers.get('content-type') ?? ''
+        if (!image.ok || !type.startsWith('image/')) throw new Error(`thumbnail did not serve: ${image.status} ${type}`)
+        notes.push('thumbnails')
+      }
     }
   } finally {
     // wrangler spawns workerd beneath it; give the whole tree a moment to let go of the
@@ -204,8 +235,10 @@ async function smoke(testCase) {
 }
 
 let failed = 0
+let ran = 0
 for (const testCase of CASES) {
   if (only && testCase.id !== only) continue
+  ran++
   process.stdout.write(`${testCase.id.padEnd(16)} `)
   try {
     console.log(`ok — ${await smoke(testCase)}`)
@@ -226,6 +259,13 @@ if (keep) {
   } catch (error) {
     console.warn(`could not remove ${root}: ${error instanceof Error ? error.message : error}`)
   }
+}
+
+// A --only that matched no case just ran nothing and would have exited green — which, from
+// the CI matrix, looks exactly like coverage. A typo in the matrix id must fail loudly here.
+if (only && ran === 0) {
+  console.error(`no case named "${only}" — cases: ${CASES.map(c => c.id).join(', ')}`)
+  process.exit(1)
 }
 
 process.exit(failed === 0 ? 0 : 1)

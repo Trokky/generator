@@ -1,0 +1,57 @@
+---
+import Base from '../../layouts/Base.astro'
+import { load } from '../../trokky/page'
+import { formatDate } from '../../trokky/site'
+import Avatar from '../../components/Avatar.astro'
+const s = await load(Astro)
+const x = await s.session(Astro.params.id!)
+if (!x) return new Response(null, { status: 404 })
+---
+<Base title={x.title} event={s.event}>
+  <section><div class="wrap">
+    <a class="back-link" href="/sessions">← All sessions</a>
+    <div class="detail-grid">
+      <div class="detail-main">
+        <div class="detail-meta">
+          <span class="chip accent">{x.type}</span>
+          {x.track && <span class="chip">{x.track.name}</span>}
+          <span class="chip">{formatDate(x.day)}</span>
+          <span class="chip">{x.start}–{x.end}</span>
+          {x.level && <span class="chip">{x.level}</span>}
+        </div>
+        <h1 class="display">{x.title}</h1>
+        {x.abstract && <p class="detail-prose">{x.abstract}</p>}
+        {(x.tags ?? []).length > 0 && (
+          <div class="tag-row" style="margin-top:1.5rem">
+            {x.tags.map((t: string) => <span class="tag">#{t}</span>)}
+          </div>
+        )}
+        {x.speakers.length > 0 && (
+          <>
+            <h3 class="serif" style="margin:2.5rem 0 1rem">Featuring</h3>
+            <div class="card-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px">
+              {x.speakers.map(sp => (
+                <a class="card speaker-card" href={`/speakers/${sp.id}`}>
+                  <Avatar speaker={sp} size={160} />
+                  <div class="card-body">
+                    <h3 class="card-name">{sp.name}</h3>
+                    <p class="card-role">{sp.role}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <aside class="detail-aside">
+        <h4>Where &amp; when</h4>
+        <div class="kv"><span class="k">Room</span><span class="v">{x.track?.room || '—'}</span></div>
+        <div class="kv"><span class="k">Track</span><span class="v">{x.track?.name || '—'}</span></div>
+        <div class="kv"><span class="k">Day</span><span class="v">{formatDate(x.day)}</span></div>
+        <div class="kv"><span class="k">Time</span><span class="v">{x.start}–{x.end}</span></div>
+        <div class="kv"><span class="k">Level</span><span class="v">{x.level}</span></div>
+        <div class="kv" style="border:none"><span class="k">Type</span><span class="v">{x.type}</span></div>
+      </aside>
+    </div>
+  </div></section>
+</Base>

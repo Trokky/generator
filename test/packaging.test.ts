@@ -47,7 +47,7 @@ const packed: string[] = packument.files.map(f => f.path)
 describe('the published tarball', () => {
   it('ships every file set the generator copies from', () => {
     // No 'node': a Node project is entirely emitted, so there is nothing to copy for it.
-    for (const set of ['base', 'workers', 'content/magazine', 'site/magazine']) {
+    for (const set of ['base', 'workers', 'content/magazine', 'content/conference', 'site/magazine', 'site/conference']) {
       expect(packed.some(path => path.startsWith(`files/${set}/`)), `files/${set}/`).toBe(true)
     }
   })
@@ -67,7 +67,7 @@ describe('the published tarball', () => {
 })
 
 describe('every set the generator can ask for exists', () => {
-  it('is true for all 50 valid compositions, not just the ones smoke-tested', () => {
+  it('is true for all 80 valid compositions, not just the ones smoke-tested', () => {
     // An empty directory survives neither git nor npm. This is the test that would have caught
     // `files/node/` — created locally, never committed, fine until someone else cloned it.
     const ids = (axis: string) => manifest.axes.find(a => a.id === axis)!.options.map(o => o.id)
@@ -83,7 +83,7 @@ describe('every set the generator can ask for exists', () => {
                 expect(() => generate(config, source), JSON.stringify({ target, parts, content })).not.toThrow()
                 built++
               }
-    expect(built).toBe(50)
+    expect(built).toBe(80)
   })
 })
 
