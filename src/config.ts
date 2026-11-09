@@ -39,7 +39,8 @@ export function withDefaults(input: PartialConfig): ProjectConfig {
     images: pick('images') as ProjectConfig['images'],
     parts: pick('parts') as ProjectConfig['parts'],
     content: pick('content') as ProjectConfig['content'],
-    trokkyVersion: input.trokkyVersion ?? '^3.4.1',
+    // 3.6: TrokkyCore takes `env`, which the Workers entry passes
+    trokkyVersion: input.trokkyVersion ?? '^3.6.0',
   }
 }
 

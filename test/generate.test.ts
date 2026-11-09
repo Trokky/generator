@@ -54,6 +54,15 @@ describe('the full edge site', () => {
     expect(wrangler).toContain('"directory": "./dist/client"')
   })
 
+  it('runs the core in production unless .dev.vars says development', () => {
+    const core = text(tree, 'src/trokky/core.ts')
+    expect(core).toContain("env: env.TROKKY_ENV === 'development' ? 'development' : 'production',")
+    expect(core).toContain('TROKKY_ENV?: string')
+    expect(text(tree, '.dev.vars.example')).toContain('\nTROKKY_ENV=development\n')
+    // 3.6 is the first release whose TrokkyCore takes env
+    expect(JSON.parse(text(tree, 'package.json')).dependencies['@trokky/trokky']).toBe('^3.6.0')
+  })
+
   it('never makes deploy rebuild, because Workers Builds already built', () => {
     expect(JSON.parse(text(tree, 'package.json')).scripts.deploy).toBe('wrangler deploy')
   })
@@ -85,6 +94,10 @@ describe('an API-only Worker', () => {
 
 describe('a Node install', () => {
   const tree = generate(withDefaults({ name: 'my-cms', target: 'node' }), source)
+
+  it('has no TROKKY_ENV line: Node reads NODE_ENV', () => {
+    expect(text(build({ target: 'node' }), '.env.example')).not.toContain('TROKKY_ENV')
+  })
 
   it('emits a server and a config, not a Worker', () => {
     expect(tree.has('src/server.ts')).toBe(true)
