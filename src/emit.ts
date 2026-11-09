@@ -58,7 +58,8 @@ export function packageJson(config: ProjectConfig): string {
     } else {
       scripts.dev = 'tsx watch src/server.ts'
       scripts.build = 'tsc -p tsconfig.json'
-      scripts.start = 'node dist/server.js'
+      // rootDir is the project, so tsc mirrors src/ under dist/
+      scripts.start = 'node dist/src/server.js'
     }
   }
 
@@ -506,10 +507,12 @@ export function envExample(config: ProjectConfig): string {
   }
 
   if (edge) {
+    // TROKKY_ENV=development is not listed here: the deploy button offers every line of this
+    // file as a value to set on the deployed Worker, which must run with the production checks.
+    // The README adds it to the local .dev.vars instead.
     lines.push(
-      ...comment('Local development only: keep this line in .dev.vars and never set it on the deployed'),
-      ...comment('Worker, which must run with the production checks.'),
-      'TROKKY_ENV=development',
+      ...comment('For local development, also add TROKKY_ENV=development to your .dev.vars (the'),
+      ...comment('README shows how). Never set it on the deployed Worker.'),
       ''
     )
   }
