@@ -229,6 +229,8 @@ export interface TrokkyEnv {
   MEDIA: R2Bucket
 ${config.images === 'cloudflare-images' ? '  IMAGES: ImagesBinding\n' : ''}${hasStudio(config) || config.content !== 'blank' ? '  ASSETS: { fetch(request: Request): Promise<Response> }\n' : ''}  TROKKY_JWT_SECRET?: string
   TROKKY_CLAIM_SECRET?: string
+  /** 'development' in .dev.vars for \`wrangler dev\`; unset when deployed */
+  TROKKY_ENV?: string
 }
 
 export const API_PATH = '/api'
@@ -259,6 +261,9 @@ ${mediaConfig}    },
     {
       jwtSecret: env.TROKKY_JWT_SECRET,
       claimSecret: env.TROKKY_CLAIM_SECRET,
+      // A Worker has no NODE_ENV: say production unless .dev.vars says otherwise, so a deploy
+      // without a real signing key refuses to start instead of signing with a random one
+      env: env.TROKKY_ENV === 'development' ? 'development' : 'production',
     },
   )
   // Creates the image processor; nothing serves images without it.
@@ -498,6 +503,15 @@ export function envExample(config: ProjectConfig): string {
 
   for (const secret of secrets) {
     lines.push(...comment(secret.why), `${secret.name}=`, '')
+  }
+
+  if (edge) {
+    lines.push(
+      ...comment('Local development only: keep this line in .dev.vars and never set it on the deployed'),
+      ...comment('Worker, which must run with the production checks.'),
+      'TROKKY_ENV=development',
+      ''
+    )
   }
 
   if (config.data === 'postgres-data') lines.push('# Postgres connection string.', 'DATABASE_URL=', '')
