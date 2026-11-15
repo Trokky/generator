@@ -132,7 +132,22 @@ is in, the site answers, and an unset claim secret leaves the claim open.
 Wrangler provisions the D1 database and R2 bucket named in \`wrangler.jsonc\` on first deploy.
 \`database_id\` is intentionally empty: it is bound by name.
 
-` : ''}## The first minute
+` : `## Run it in production
+
+\`\`\`
+npm ci
+npm run build
+NODE_ENV=production npm start
+\`\`\`
+
+The build needs the devDependencies (TypeScript and its types), so install them: set
+\`NODE_ENV=production\` for the start, not for the install. \`npm prune --omit=dev\` after the
+build is safe. Start from the project directory, since the server reads \`.env\`, \`dist/\` and
+\`public/\` from there, with \`TROKKY_JWT_SECRET\` and \`TROKKY_CLAIM_SECRET\` in the environment.${hasFrontend(config) ? `
+\`npm run dev\` rebuilds the site into \`dist/\` and clears the compiled server, so run
+\`npm run build\` again before \`npm start\`.` : ''}
+
+`}## The first minute
 
 ${hasStudio(config) ? `Open \`/studio\`. Nobody owns this instance yet, so the first screen asks you to **claim** it:
 pick a username, an email and a password, and paste \`TROKKY_CLAIM_SECRET\`.` : `Nobody owns this instance yet. **Claim** it over HTTP (on a deployed site, use its URL instead of
