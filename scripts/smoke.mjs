@@ -150,6 +150,22 @@ async function smoke(testCase) {
   run('npm', ['run', 'build'], dir)
   notes.push('built')
 
+  // A Workers build is wrangler's bundler, which never typechecks. Without this, a project that
+  // opens in the editor full of type errors passes. (Node API and Studio builds run tsc; Node
+  // full-site builds run astro build, which does not typecheck either: Trokky/generator#12.)
+  if (workers) {
+    try {
+      run('npx', ['tsc', '--noEmit', '-p', 'tsconfig.json'], dir)
+    } catch (error) {
+      // The reporter prints the first line of the message and `stderr`: tsc writes its
+      // diagnostics to stdout, so carry them across or the failure says nothing.
+      throw Object.assign(new Error('the generated project does not typecheck'), {
+        stderr: `${error.stdout ?? ''}${error.stderr ?? ''}`,
+      })
+    }
+    notes.push('typechecked')
+  }
+
   if (testCase.skipBoot) return `${notes.join(', ')}, boot skipped (${testCase.skipBoot})`
 
   const port = workers ? 8876 : 8877
@@ -160,7 +176,9 @@ async function smoke(testCase) {
   // tail so the failure says what happened.
   const child = workers
     ? spawn('npx', ['wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1'], { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] })
-    : spawn('npx', ['tsx', 'src/server.ts'], { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PORT: String(port) } })
+    // `npm start`, as the README says to run it in production: a wrong start path used to ship
+    // with this matrix green, because it booted src/server.ts through tsx instead.
+    : spawn('npm', ['start'], { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PORT: String(port), NODE_ENV: 'production' } })
 
   let tail = ''
   const keepTail = chunk => { tail = (tail + chunk).slice(-4000) }

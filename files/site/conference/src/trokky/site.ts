@@ -79,7 +79,7 @@ export async function site(core: TrokkyCore): Promise<Site> {
     ...s,
     day: dayOf(s.day),
     track: tracksById.get(refId(s.track) ?? '') ?? null,
-    speakers: (s.speakers ?? []).map((v: unknown) => speakersById.get(refId(v) ?? '')).filter((sp): sp is Doc => Boolean(sp)),
+    speakers: ((s.speakers ?? []) as unknown[]).map(v => speakersById.get(refId(v) ?? '')).filter((sp): sp is Doc => Boolean(sp)),
   })
 
   const sessions = sessionRows

@@ -332,7 +332,7 @@ ${hasStudio(config) ? `
       return studio(request)
     }
 ` : ''}${hasFrontend(config) ? `
-    return handle(request, env as unknown as Env, ctx)` : `
+    return handle(request, env as unknown as Parameters<typeof handle>[1], ctx)` : `
     return new Response('Not Found', { status: 404 })`}
   },
 } satisfies ExportedHandler<TrokkyEnv>
@@ -557,7 +557,8 @@ export function tsconfig(config: ProjectConfig): string {
         extends: hasFrontend(config) ? 'astro/tsconfigs/strict' : undefined,
         compilerOptions: {
           target: 'ES2022', module: 'ESNext', moduleResolution: 'bundler',
-          types: ['@cloudflare/workers-types/2023-07-01'],
+          // The bare package: workers-types 5 dropped the dated entry points (2023-07-01, …).
+          types: ['@cloudflare/workers-types'],
           strict: true, skipLibCheck: true, noEmit: true,
         },
         include: ['src/**/*', 'scripts/**/*'],
