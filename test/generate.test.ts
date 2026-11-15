@@ -61,8 +61,9 @@ describe('the full edge site', () => {
     // Not in the example: the deploy button would offer it for the deployed Worker
     expect(text(tree, '.dev.vars.example')).not.toMatch(/^TROKKY_ENV=/m)
     expect(text(tree, 'README.md')).toContain('echo TROKKY_ENV=development >> .dev.vars')
-    // 3.6 is the first release whose TrokkyCore takes env
-    expect(JSON.parse(text(tree, 'package.json')).dependencies['@trokky/trokky']).toBe('^3.6.0')
+    // 3.6 is the first release whose TrokkyCore takes env; 3.6.2 the first whose R2 adapter
+    // accepts env.MEDIA as the globals type it
+    expect(JSON.parse(text(tree, 'package.json')).dependencies['@trokky/trokky']).toBe('^3.6.2')
   })
 
   it('never makes deploy rebuild, because Workers Builds already built', () => {

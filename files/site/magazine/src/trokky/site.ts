@@ -55,7 +55,7 @@ export async function site(core: TrokkyCore): Promise<Site> {
     categoryBySlug: (slug) => one('category', { slug }),
     categories: () => list('category'),
     articlesBy: async (field, id) => (await list('article', { [field]: id })).sort(byDateDesc),
-    articlesIn: async (ids) => (await Promise.all(ids.map(id => core.getDocument('article', id)))).filter((d): d is Doc => !!d && d._status === 'published'),
+    articlesIn: async (ids) => (await Promise.all(ids.map(id => core.getDocument('article', id) as Promise<Doc | null>))).filter((d): d is Doc => !!d && d._status === 'published'),
     documents: async () => (await list('document')).sort(byDateDesc),
     page: (slug) => one('page', { slug }),
   }
