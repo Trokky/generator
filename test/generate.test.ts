@@ -58,13 +58,22 @@ describe('the full edge site', () => {
     const core = text(tree, 'src/trokky/core.ts')
     expect(core).toContain("env: env.TROKKY_ENV === 'development' ? 'development' : 'production',")
     expect(core).toContain('TROKKY_ENV?: string')
-    expect(text(tree, '.dev.vars.example')).toContain('\nTROKKY_ENV=development\n')
+    // Not in the example: the deploy button would offer it for the deployed Worker
+    expect(text(tree, '.dev.vars.example')).not.toMatch(/^TROKKY_ENV=/m)
+    expect(text(tree, 'README.md')).toContain('echo TROKKY_ENV=development >> .dev.vars')
     // 3.6 is the first release whose TrokkyCore takes env
     expect(JSON.parse(text(tree, 'package.json')).dependencies['@trokky/trokky']).toBe('^3.6.0')
   })
 
   it('never makes deploy rebuild, because Workers Builds already built', () => {
     expect(JSON.parse(text(tree, 'package.json')).scripts.deploy).toBe('wrangler deploy')
+  })
+
+  it('sets the claim secret on the deployed Worker before the JWT secret', () => {
+    const readme = text(tree, 'README.md')
+    const claim = readme.indexOf('wrangler secret put TROKKY_CLAIM_SECRET')
+    expect(claim).toBeGreaterThan(-1)
+    expect(readme.indexOf('wrangler secret put TROKKY_JWT_SECRET')).toBeGreaterThan(claim)
   })
 })
 
@@ -94,6 +103,28 @@ describe('an API-only Worker', () => {
 
 describe('a Node install', () => {
   const tree = generate(withDefaults({ name: 'my-cms', target: 'node' }), source)
+
+  it('starts from where tsc writes the server', () => {
+    // rootDir is the project, so src/server.ts compiles to dist/src/server.js
+    expect(text(tree, 'tsconfig.json')).toContain('"rootDir": "."')
+    expect(JSON.parse(text(tree, 'package.json')).scripts.start).toBe('node dist/src/server.js')
+  })
+
+  it('tells an API-only project how to claim without a Studio', () => {
+    const readme = text(build({ target: 'node', parts: 'api' }), 'README.md')
+    expect(readme).toContain('/api/auth/claim')
+    expect(readme).not.toContain('`/studio`')
+  })
+
+  it('claims an API-only project with every field the server requires, on the dev port', () => {
+    const node = text(build({ target: 'node', parts: 'api' }), 'README.md')
+    const edge = text(build({ target: 'workers', parts: 'api', content: 'blank' }), 'README.md')
+    for (const readme of [node, edge]) {
+      for (const field of ['"username"', '"email"', '"password"', '"secret"']) expect(readme).toContain(field)
+    }
+    expect(node).toContain('http://localhost:3000/api/auth/claim')
+    expect(edge).toContain('http://localhost:8787/api/auth/claim')
+  })
 
   it('has no TROKKY_ENV line: Node reads NODE_ENV', () => {
     expect(text(build({ target: 'node' }), '.env.example')).not.toContain('TROKKY_ENV')

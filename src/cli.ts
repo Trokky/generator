@@ -90,6 +90,7 @@ async function main(): Promise<void> {
       console.log(`  # ${secret.name}=   (${secret.optional ? 'optional — ' : ''}${secret.why})`)
     }
   }
+  if (config.target === 'workers') console.log('  echo TROKKY_ENV=development >> .dev.vars')
   console.log('  npm install')
   console.log(config.target === 'workers' ? '  npm run build && npm run preview' : '  npm run dev')
 }

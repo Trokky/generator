@@ -108,6 +108,7 @@ Generated with \`npm create trokky@latest\`.
 
 \`\`\`
 ${edge ? `cp .dev.vars.example .dev.vars   # fill both secrets
+echo TROKKY_ENV=development >> .dev.vars
 npm install
 npm run build && npm run preview` : `cp .env.example .env             # fill both secrets
 npm install
@@ -118,16 +119,28 @@ ${edge ? `## Deploy
 
 \`\`\`
 npm run build && npm run deploy
+npx wrangler secret put TROKKY_CLAIM_SECRET
+npx wrangler secret put TROKKY_JWT_SECRET
 \`\`\`
+
+\`.dev.vars\` is not uploaded, so the deployed Worker needs its own secrets; without
+\`TROKKY_JWT_SECRET\` it answers with an error. Set the claim secret first: once the JWT secret
+is in, the site answers, and an unset claim secret leaves the claim open.
 
 Wrangler provisions the D1 database and R2 bucket named in \`wrangler.jsonc\` on first deploy.
 \`database_id\` is intentionally empty: it is bound by name.
 
 ` : ''}## The first minute
 
-Open ${hasStudio(config) ? '`/studio`' : 'the API'}. Nobody owns this instance yet, so the first
-screen asks you to **claim** it: pick a username and password, and paste \`TROKKY_CLAIM_SECRET\`.
-${config.content === 'blank' ? '' : 'Sample content appears a moment later — edit it or delete it.'}
+${hasStudio(config) ? `Open \`/studio\`. Nobody owns this instance yet, so the first screen asks you to **claim** it:
+pick a username, an email and a password, and paste \`TROKKY_CLAIM_SECRET\`.` : `Nobody owns this instance yet. **Claim** it over HTTP (on a deployed site, use its URL instead of
+localhost); the response signs you in:
+
+\`\`\`
+curl -X POST http://localhost:${edge ? '8787' : '3000'}/api/auth/claim -H 'Content-Type: application/json' \\
+  -d '{"username":"admin","email":"you@example.com","password":"<a strong password>","secret":"<TROKKY_CLAIM_SECRET>"}'
+\`\`\``}
+${config.content === 'blank' ? '' : edge ? 'Sample content appears a moment after the claim — edit it or delete it.' : 'Sample content is written at the first start — edit it or delete it.'}
 
 Without a claim secret the claim is open to whoever reaches the URL first. That is fine for the
 minute between deploying and opening the link; it is not fine for an instance left sitting.
