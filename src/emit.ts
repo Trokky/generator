@@ -144,10 +144,14 @@ export async function load(astro: AstroGlobal): Promise<Site> {
 `
 }
 
-export function wranglerConfig(config: ProjectConfig): string {
+/** `seedFiles`: the project ships public/seed/, which the sample-content seed reads through ASSETS. */
+export function wranglerConfig(config: ProjectConfig, seedFiles = false): string {
+  // An API-only project whose sample content ships files still binds ./public: the seed reads
+  // them through the binding, and run_worker_first keeps them from being served. One whose seed
+  // has no files has no public/ at all, and wrangler refuses a missing assets directory.
   const assets = hasFrontend(config)
     ? `"./dist/client"`
-    : hasStudio(config)
+    : hasStudio(config) || seedFiles
       ? `"./public"`
       : null
 
@@ -166,8 +170,15 @@ export function wranglerConfig(config: ProjectConfig): string {
       '  "assets": {',
       `    "directory": ${assets},`,
       '    "binding": "ASSETS",',
-      '    // Every request goes through the Worker: /studio needs its config injected, and /api',
-      '    // is not a file. Static files are fetched through the binding by the handlers.',
+      ...(hasStudio(config)
+        ? [
+            '    // Every request goes through the Worker: /studio needs its config injected, and /api',
+            '    // is not a file. Static files are fetched through the binding by the handlers.',
+          ]
+        : [
+            '    // Only the sample-content seed reads these, through the binding. Every request goes',
+            '    // through the Worker, which serves nothing outside /api, so none of them is public.',
+          ]),
       '    "run_worker_first": true,',
       '    "html_handling": "none",',
       '    "not_found_handling": "none"',

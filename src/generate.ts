@@ -62,7 +62,8 @@ export function generate(config: ProjectConfig, source: FileSource): FileTree {
   }
 
   if (config.target === 'workers') {
-    tree.set('wrangler.jsonc', emit.wranglerConfig(config))
+    const seedFiles = [...tree.keys()].some(k => k.startsWith('public/seed/'))
+    tree.set('wrangler.jsonc', emit.wranglerConfig(config, seedFiles))
     tree.set('src/worker.ts', emit.workersEntry(config))
     tree.set('src/trokky/core.ts', emit.workersCore(config))
     tree.set('.dev.vars.example', emit.envExample(config))
@@ -76,8 +77,9 @@ export function generate(config: ProjectConfig, source: FileSource): FileTree {
   if (!hasStudio(config)) {
     tree.delete('scripts/copy-studio.mjs')
   }
-  // Seed assets are only reachable when something serves static files.
-  if (config.content === 'blank' || (config.target === 'workers' && !hasStudio(config) && !hasFrontend(config))) {
+  // Blank content has nothing to seed. Every other project reads its seed files: from disk on
+  // Node, through the assets binding on Workers (bound for API-only projects too).
+  if (config.content === 'blank') {
     for (const path of [...tree.keys()]) if (path.startsWith('public/seed/')) tree.delete(path)
   }
 

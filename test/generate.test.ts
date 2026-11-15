@@ -89,6 +89,23 @@ describe('an API-only Worker', () => {
     expect([...tree.keys()].some(k => k.startsWith('public/seed/'))).toBe(false)
   })
 
+  it('with sample content, binds ./public so the seed can read its files, and ships them', () => {
+    const seeded = build({ parts: 'api', content: 'magazine' })
+    const wrangler = text(seeded, 'wrangler.jsonc')
+    expect(wrangler).toContain('"directory": "./public"')
+    expect(wrangler).toContain('"binding": "ASSETS"')
+    expect(wrangler).toContain('"run_worker_first": true')
+    expect(text(seeded, 'src/worker.ts')).toContain('env.ASSETS.fetch')
+    expect([...seeded.keys()].some(k => k.startsWith('public/seed/'))).toBe(true)
+    expect(text(tree, 'wrangler.jsonc')).not.toContain('"assets"')
+  })
+
+  it('with sample content that ships no files, binds no assets directory it does not have', () => {
+    const conference = build({ parts: 'api', content: 'conference' })
+    expect([...conference.keys()].some(k => k.startsWith('public/'))).toBe(false)
+    expect(text(conference, 'wrangler.jsonc')).not.toContain('"assets"')
+  })
+
   it('depends on neither Studio nor Astro', () => {
     const pkg = JSON.parse(text(tree, 'package.json'))
     expect(pkg.dependencies['@trokky/studio']).toBeUndefined()

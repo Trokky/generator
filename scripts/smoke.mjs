@@ -12,7 +12,7 @@
  */
 
 import { execFileSync, spawn } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
@@ -32,6 +32,12 @@ const CASES = [{
   id: 'workers-studio', flags: ['--target=workers', '--parts=studio', '--content=magazine'],
 }, {
   id: 'workers-api', flags: ['--target=workers', '--parts=api', '--content=blank'],
+}, {
+  // No site to probe: the seed is checked through the media API instead.
+  id: 'workers-api-magazine', flags: ['--target=workers', '--parts=api', '--content=magazine'],
+}, {
+  // The conference seed ships no files, so this one has no assets binding and no public/.
+  id: 'workers-api-conference', flags: ['--target=workers', '--parts=api', '--content=conference'],
 }, {
   id: 'node-full',
   flags: ['--target=node', '--parts=full-site', '--content=magazine'],
@@ -196,6 +202,26 @@ async function smoke(testCase) {
       const html = await studio.text()
       if (!studio.ok || !html.includes('"mode":"production"')) throw new Error('Studio document not served')
       notes.push('studio')
+    }
+
+    // Without a site to render, the seed is checked through the API: magazine ships media,
+    // and every upload in it goes through the seed's file reader.
+    if (!testCase.flags.includes('--parts=full-site') && testCase.flags.includes('--content=magazine')) {
+      const token = claimed?.data?.token
+      if (!token) throw new Error('the claim returned no token')
+      // Every file the seed ships, not just the first: a partial seed must fail.
+      const expected = readdirSync(new URL('../files/content/magazine/public/seed/', import.meta.url))
+        .filter(name => name !== 'README.txt').length
+      let total = 0
+      const deadline = Date.now() + 90_000
+      while (Date.now() < deadline) {
+        const media = await (await fetch(`${base}/api/media?limit=1`, { headers: { authorization: `Bearer ${token}` } })).json()
+        total = media?.meta?.total ?? 0
+        if (total >= expected) break
+        await sleep(2000)
+      }
+      if (total < expected) throw new Error(`the seed uploaded ${total} of ${expected} media`)
+      notes.push(`seeded ${total} media`)
     }
 
     if (testCase.flags.includes('--parts=full-site')) {
