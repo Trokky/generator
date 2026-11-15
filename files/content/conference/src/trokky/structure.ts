@@ -1,5 +1,6 @@
 /**
- * How content is arranged in the Studio sidebar.
+ * How content is arranged: the Studio's sidebar, when there is one, and the document id each
+ * singleton is opened and first created under, which the API uses too.
  *
  * The schema decides what a singleton is; this only decides where things appear and which
  * document id the singleton uses.

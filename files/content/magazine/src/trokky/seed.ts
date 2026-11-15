@@ -2,7 +2,7 @@
  * Sample content, created the moment the instance is claimed.
  *
  * An empty CMS shows an empty site, and the first minute decides whether a newcomer keeps
- * going. So the new owner's first sight of both the site and the Studio is a working magazine —
+ * going. So the new owner's first sight of the content is a working magazine —
  * illustrated, with authors, categories, downloadable documents and pages — that they can edit
  * or delete. Every document id is fixed, so seeding twice is harmless; media is only uploaded
  * when there are no articles yet.
@@ -20,7 +20,7 @@ export type SeedAssetReader = (path: string) => Promise<ArrayBuffer>
 
 const P = { _status: 'published' } as const
 
-/** The value the Studio's media field reads and writes. */
+/** The value a media field holds, as the Studio and the API read and write it. */
 const media = (id: string, alt?: string) => ({ _type: 'media', asset: { _type: 'mediaAsset', _ref: id }, ...(alt ? { alt } : {}) })
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
@@ -56,8 +56,8 @@ export async function seedSampleContent(core: TrokkyCore, readAsset: SeedAssetRe
       { label: 'About', href: '/about' },
       { label: 'Contact', href: '/contact' }
     ],
-    footer: 'Published with Trokky. Everything you see here is editable in Studio.',
-    footer_fr: 'Publié avec Trokky. Tout ce que vous voyez se modifie dans Studio.'
+    footer: 'Published with Trokky. Everything you see here is content you can edit.',
+    footer_fr: 'Publié avec Trokky. Tout ce que vous voyez est du contenu modifiable.'
   })
 
   await core.saveDocument('author', { id: 'author-ama', ...P, name: 'Ama Kodjo', slug: 'ama-kodjo', role: 'Editor', bio: 'Runs the magazine and writes the long pieces. Previously ten years in print.', avatar: media(a1, 'Ama Kodjo') })
@@ -76,7 +76,7 @@ export async function seedSampleContent(core: TrokkyCore, readAsset: SeedAssetRe
     cover: media(c1, 'A desk with a notebook and coffee'),
     author: 'author-ama', category: 'category-tech', featured: true, publishedAt: daysAgo(0),
     body: paras(
-      'Everything on this site comes from the Studio at <a href="/studio">/studio</a>. This article, the authors, the categories, the navigation in the header — all of it is content you can edit.',
+      'Everything here is content in Trokky. This article, the authors, the categories, the navigation in the header — all of it can be edited, in the Studio or through the API.',
       'Start with <strong>Site settings</strong>: give the magazine its real name. Then open this article and change the title. Refresh the home page. That is the whole loop.',
       'Articles can be drafts. A draft is saved but not shown here; publish it when it is ready. The <em>featured</em> switch decides what leads the home page.'
     ),
@@ -120,7 +120,7 @@ export async function seedSampleContent(core: TrokkyCore, readAsset: SeedAssetRe
     excerpt: 'Save without publishing, publish when ready, unpublish without deleting.',
     cover: media(c5), author: 'author-ama', category: 'category-tech', featured: false, publishedAt: daysAgo(6),
     body: paras(
-      'Open this article in Studio and set it back to draft. Refresh this page: it is gone from the site, but nothing was deleted. Publish it again and it returns.',
+      'Set this article back to draft, in the Studio or through the API. It disappears from the published content, but nothing was deleted. Publish it again and it returns.',
       'The site only ever reads published content. Drafts are yours alone.'
     )
   })
@@ -139,5 +139,5 @@ export async function seedSampleContent(core: TrokkyCore, readAsset: SeedAssetRe
   await core.saveDocument('document', { id: 'document-guidelines', ...P, title: 'Editorial guidelines', slug: 'editorial-guidelines', summary: 'How we write, and what we will not publish.', file: media(pdfGuide), publishedAt: daysAgo(12) })
 
   await core.saveDocument('page', { id: 'page-about', ...P, title: 'About', slug: 'about', body: paras('This magazine runs on <a href="https://trokky.dev">Trokky</a>, a self-hosted CMS, on Cloudflare Workers. The content is in a D1 database and the files in an R2 bucket — both on your own account.', 'Replace this page with who you are.') })
-  await core.saveDocument('page', { id: 'page-contact', ...P, title: 'Contact', slug: 'contact', body: paras('Put an email address, a form, or a map here. This is an ordinary page: edit it under <strong>Pages</strong> in Studio.') })
+  await core.saveDocument('page', { id: 'page-contact', ...P, title: 'Contact', slug: 'contact', body: paras('Put an email address, a form, or a map here. This is an ordinary page: edit it like any other page document.') })
 }

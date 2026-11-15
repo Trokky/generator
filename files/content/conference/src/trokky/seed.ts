@@ -2,7 +2,7 @@
  * Sample content, created the moment the instance is claimed.
  *
  * An empty CMS shows an empty site, and the first minute decides whether a newcomer keeps
- * going. So the new owner’s first sight of both the site and the Studio is a whole working
+ * going. So the new owner’s first sight of the content is a whole working
  * conference — six tracks, eight speakers, a fourteen-slot program, sponsors, a venue with
  * tickets — that they can edit or delete. Every document id is fixed, so seeding twice is
  * harmless; sessions are only created when there are none. This template ships no media:
