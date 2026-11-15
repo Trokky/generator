@@ -107,6 +107,23 @@ describe('an API-only Worker', () => {
     expect(text(conference, 'wrangler.jsonc')).not.toContain('"assets"')
   })
 
+  it('turns off Astro sessions on Workers, so the deploy creates no unused KV namespace', () => {
+    for (const content of ['magazine', 'conference'] as const) {
+      expect(text(build({ parts: 'full-site', content }), 'astro.config.mjs')).toContain('session: false')
+    }
+  })
+
+  it('does not talk about a Studio it does not have', () => {
+    for (const content of ['blank', 'magazine'] as const) {
+      const api = build({ parts: 'api', content })
+      expect(text(api, 'README.md')).not.toMatch(/Studio follows|Studio sidebar/)
+      expect(text(api, '.gitignore')).not.toContain('public/studio/')
+      expect(text(api, '.dev.vars.example')).not.toContain('open Studio')
+      expect(text(build({ target: 'node', parts: 'api', content }), '.env.example')).not.toContain('open Studio')
+    }
+    expect(text(build({ parts: 'studio', content: 'magazine' }), '.gitignore')).toContain('public/studio/')
+  })
+
   it('depends on neither Studio nor Astro', () => {
     const pkg = JSON.parse(text(tree, 'package.json'))
     expect(pkg.dependencies['@trokky/studio']).toBeUndefined()
