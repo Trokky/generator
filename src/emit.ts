@@ -50,10 +50,13 @@ export function packageJson(config: ProjectConfig): string {
     if (hasFrontend(config)) {
       dependencies.astro = '^7.3.2'
       dependencies['@astrojs/node'] = '^11.1.5'
-      // The server imports the built Astro handler, so the site has to be built before it runs.
-      scripts.build = 'astro build'
+      // The server loads the built Astro handler, so the site is built first, then the server
+      // is compiled: production starts with node alone, since a host that installs with
+      // NODE_ENV=production has no tsx (a devDependency) to run TypeScript with.
+      scripts.build = 'astro build && tsc -p tsconfig.json'
       scripts.dev = 'astro build && tsx watch src/server.ts'
-      scripts.start = 'tsx src/server.ts'
+      // rootDir is the project, so tsc mirrors src/ under dist/, beside Astro's dist/server
+      scripts.start = 'node dist/src/server.js'
       scripts.check = 'astro check'
     } else {
       scripts.dev = 'tsx watch src/server.ts'
@@ -357,8 +360,8 @@ import { startServer } from '${TROKKY}/express'
 import '${TROKKY}/adapters/${config.data}'
 import '${TROKKY}/adapters/${config.media}'
 ${hasStudio(config) ? `import { studioRouter } from '${STUDIO}/express'\n` : ''}${site ? `import express from 'express'
-// Built by \`astro build\`; run the build before the server.
-import { handler as ssrHandler } from '../dist/server/entry.mjs'
+import type { NextFunction, Request, Response } from 'express'
+import { pathToFileURL } from 'node:url'
 ` : ''}${seeds ? `import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { seedSampleContent } from './trokky/seed.js'
@@ -370,6 +373,13 @@ ${hasStudio(config) ? `
 // Mount Studio before anything that could swallow it.
 server.app.use('/studio', studioRouter({ apiPath: '/api' }))
 ` : ''}${site ? `
+// Built by \`astro build\`; run the build before the server. Loaded from the working directory,
+// like dist/client below, so the same line works from src/ under tsx and from dist/src/ once
+// compiled: start the server from the project directory, or it stops here. Typed here: Astro
+// emits no declarations for its entry.
+type SsrHandler = (req: Request, res: Response, next: NextFunction, locals?: object) => void
+const { handler: ssrHandler } = (await import(pathToFileURL('dist/server/entry.mjs').href)) as { handler: SsrHandler }
+
 // Middleware mode does no file serving of its own, so the built client assets come first.
 server.app.use(express.static('dist/client'))
 // Then every remaining path is Astro's. The core goes in as locals, which is how a page reads
@@ -569,6 +579,9 @@ export function tsconfig(config: ProjectConfig): string {
           outDir: 'dist', rootDir: '.', strict: true, skipLibCheck: true,
           esModuleInterop: true, types: ['node'],
         },
-        include: ['src/**/*', 'trokky.config.ts'],
+        // The server's entry points only: tsc follows their imports. src/**/* would also pull in
+        // the site's own files (pages, endpoints), which use Astro's types (import.meta.env,
+        // astro:*) that a Node-only program lacks; astro check covers those.
+        include: ['src/server.ts', 'trokky.config.ts'],
       }, null, 2) + '\n'
 }

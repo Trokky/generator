@@ -223,11 +223,26 @@ describe('the site is portable: same pages, either runtime', () => {
 
   it('serves the built site from the Node server, assets first', () => {
     const server = text(node, 'src/server.ts')
-    expect(server).toContain("from '../dist/server/entry.mjs'")
+    // From the working directory: the compiled server sits one level deeper than src/
+    expect(server).toContain("await import(pathToFileURL('dist/server/entry.mjs').href)")
+    expect(server).not.toContain('../dist/server/entry.mjs')
     expect(server).toContain("express.static('dist/client')")
+    expect(server.indexOf("express.static('dist/client')")).toBeLessThan(server.indexOf('ssrHandler(req, res, next'))
     expect(server).toContain('ssrHandler(req, res, next, { trokky: core })')
-    expect(JSON.parse(text(node, 'package.json')).dependencies['@astrojs/node']).toBeTruthy()
-    expect(JSON.parse(text(node, 'package.json')).scripts.build).toBe('astro build')
+    const pkg = JSON.parse(text(node, 'package.json'))
+    expect(pkg.dependencies['@astrojs/node']).toBeTruthy()
+    expect(pkg.scripts.build).toBe('astro build && tsc -p tsconfig.json')
+  })
+
+  it('starts the Node site with node alone, not tsx, which production installs drop', () => {
+    const pkg = JSON.parse(text(node, 'package.json'))
+    expect(pkg.scripts.start).toBe('node dist/src/server.js')
+    expect(pkg.dependencies.tsx).toBeUndefined()
+    // Entry points only, so the site's own Astro-typed files never reach the Node program
+    expect(JSON.parse(text(node, 'tsconfig.json')).include).toEqual(['src/server.ts', 'trokky.config.ts'])
+    const readme = text(node, 'README.md')
+    expect(readme).toContain('NODE_ENV=production npm start')
+    expect(readme).toContain('The build needs the devDependencies')
   })
 
   it('gives a Node project without a site no Astro at all', () => {
