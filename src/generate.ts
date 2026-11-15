@@ -73,9 +73,13 @@ export function generate(config: ProjectConfig, source: FileSource): FileTree {
     tree.set('.env.example', emit.envExample(config))
   }
 
-  // A Studio-less project has nothing to copy Studio into.
+  // A Studio-less project has nothing to copy Studio into, and nothing to ignore for it.
   if (!hasStudio(config)) {
     tree.delete('scripts/copy-studio.mjs')
+    const ignore = tree.get('.gitignore')
+    if (typeof ignore === 'string') {
+      tree.set('.gitignore', ignore.replace('# Copied from @trokky/studio at build time; never hand-edited.\npublic/studio/\n', ''))
+    }
   }
   // Blank content has nothing to seed. Every other project reads its seed files: from disk on
   // Node, through the assets binding on Workers (bound for API-only projects too).
@@ -164,7 +168,9 @@ minute between deploying and opening the link; it is not fine for an instance le
 
 ## Make it yours
 
-${config.content === 'blank' ? '- `src/trokky/` — add your schemas; the Studio follows them.' : '- `src/trokky/schemas.ts` — the content model. The Studio follows it.\n- `src/trokky/structure.ts` — the Studio sidebar.'}
+${config.content === 'blank'
+  ? `- \`src/trokky/\` — add your schemas; ${hasStudio(config) ? 'the Studio follows them' : 'the API validates against them'}.`
+  : `- \`src/trokky/schemas.ts\` — the content model. ${hasStudio(config) ? 'The Studio follows it.' : 'The API validates against it.'}\n- \`src/trokky/structure.ts\` — ${hasStudio(config) ? 'the Studio sidebar' : 'how content is arranged, including each singleton\'s document id, which the API enforces'}.`}
 ${hasFrontend(config) ? '- `src/pages/` and `src/layouts/` — the site.\n' : ''}${edge ? '- `wrangler.jsonc` — the Worker name and its resources.' : '- `trokky.config.ts` — storage, media and security.'}
 `
 }
