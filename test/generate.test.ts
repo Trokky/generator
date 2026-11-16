@@ -122,6 +122,12 @@ describe('an API-only Worker', () => {
       expect(text(build({ target: 'node', parts: 'api', content }), '.env.example')).not.toContain('open Studio')
     }
     expect(text(build({ parts: 'studio', content: 'magazine' }), '.gitignore')).toContain('public/studio/')
+    // The sample content is shared by every composition: it may mention the Studio, but never
+    // as the only way in, and never send anyone to a /studio an API-only project lacks.
+    for (const content of ['magazine', 'conference'] as const) {
+      const seed = text(build({ parts: 'api', content }), 'src/trokky/seed.ts')
+      expect(seed).not.toMatch(/href="\/studio"|in Studio\b|dans Studio|editable in Studio|site and the Studio/)
+    }
   })
 
   it('depends on neither Studio nor Astro', () => {

@@ -3,7 +3,7 @@
  *
  * Chosen because it exercises what a newcomer evaluates a CMS on — references both ways,
  * rich text, media in two kinds (images and PDFs), drafts, slugs, a singleton — in a shape
- * everyone already understands. Rename, add and remove freely; the Studio follows the schema.
+ * everyone already understands. Rename, add and remove freely; the Studio and the API follow the schema.
  */
 
 export const settingsSchema = {
