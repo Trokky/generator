@@ -1,6 +1,6 @@
 {
   "name": "create-trokky",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Compose a Trokky project: pick the target, adapters and parts you want.",
   "type": "module",
   "license": "MIT",
